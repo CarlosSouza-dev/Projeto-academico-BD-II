@@ -5,8 +5,8 @@ Este repositório contém o Projeto Acadêmico da disciplina de Banco de Dados I
 O grupo é composto por 3 integrantes, e a divisão de responsabilidades técnicas obrigatórias foi definida da seguinte forma:
 
 ## 1. Responsável pela Modelagem Física e Desempenho
-**Nome:** Lucas Pessoa Ranieri.
-**Matrícula:** 2512130092
+**Nome:** Lucas Pessoa Ranieri.  
+**Matrícula:** 2512130092  
 **Frente:** Implementação do DDL completo (tabelas, tipos, restrições), criação de índices (incluindo índice parcial) e comprovação de ganho de desempenho via `EXPLAIN`.
 
 ## 2. Responsável por Transações e Concorrência
