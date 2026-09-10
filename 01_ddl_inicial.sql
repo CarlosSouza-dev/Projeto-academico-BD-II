@@ -108,6 +108,14 @@ CREATE TABLE curriculo (
     UNIQUE (curso_id, ano_vigencia)
 );
 
+CREATE TABLE turma_horario (
+    id_turma_horario INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    turma_id int NOT NULL REFERENCES turma(id_turma),
+    sala_id int NOT NULL REFERENCES sala(id_sala),
+    dia_semana smallint NOT NULL CHECK (dia_semana BETWEEN 1 AND 7),
+    faixa varchar(20) NOT NULL
+);
+
 -- Nível 3
 
 CREATE TABLE aluno (
@@ -121,5 +129,54 @@ CREATE TABLE aluno (
     ativo_aluno boolean NOT NULL DEFAULT true
 );
 
-CREATE TABLE 
+CREATE TABLE curriculo_disciplina (
+    curriculo_id int NOT NULL REFERENCES curriculo(id_curriculo),
+    disciplina_id int NOT NULL REFERENCES disciplina(id_disciplina),
+    periodo smallint NOT NULL,
+    tipo vinculo_t NOT NULL,
+    PRIMARY KEY (curriculo_id, disciplina_id)
+);
 
+CREATE TABLE pre_requisito (
+    requisito_id int NOT NULL REFERENCES disciplina(id_disciplina),
+    disciplina_id int NOT NULL REFERENCES disciplina(id_disciplina),
+    vinculo vinculo_t NOT NULL,
+    PRIMARY KEY (requisito_id, disciplina_id)
+);
+
+--Nível 4
+
+CREATE TABLE matricula (
+    id_matricula INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    aluno_id int NOT NULL REFERENCES aluno(id_aluno),
+    turma_id int NOT NULL REFERENCES turma(id_turma),
+    data_matricula date NOT NULL DEFAULT current_timestamp,
+    status_matricula status_mat_t NOT NULL,
+    UNIQUE (turma_id, aluno_id)
+);
+
+CREATE TABLE historico (
+    id_historico INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    matricula_id int UNIQUE NOT NULL REFERENCES matricula(id_matricula),
+    nota_a1 nota_t,
+    nota_a2 nota_t,
+    nota_a3 nota_t,
+    frequencia pct_t,
+    situacao situacao_t
+    media_final nota_t GENERATED ALWAYS AS (
+        GREATEST(
+            COALESCE((nota_a1 * 0.4) + (nota_a2 * 0.6), 0),
+            COALESCE((nota_a1 * 0.4) + (nota_p3 * 0.6), 0),
+            COALESCE((nota_p3 * 0.4) + (nota_a2 * 0.6), 0)
+        )
+    ) STORED
+);
+
+CREATE TABLE log_matricula (
+    id_log_matricula INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    matricula_id int NOT NULL REFERENCES matricula(id_matricula),
+    acao varchar(50) NOT NULL,
+    ocorrido_em timestamp NOT NULL DEFAULT current_timestamp,
+    usuario varchar(120) NOT NULL,
+    detalhe text
+);
