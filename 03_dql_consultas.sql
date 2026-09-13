@@ -1,8 +1,3 @@
--- ==============================================================================
--- ARQUIVO: 04_dql_consultas.sql
--- FRENTE: Consultas (DQL) - Marco 1
--- ==============================================================================
-
 SET search_path TO academico;
 
 -- Consulta 1
@@ -61,81 +56,88 @@ GROUP BY t.codigo, d.nome, t.vagas
 HAVING COUNT(m.id_matricula) > 30
 ORDER BY total_matriculados DESC;
 
--- Consulta 6: Busca Ociosa (LEFT JOIN exclusivo)
+-- Consulta 6: Junção externa com agregação
 SELECT 
-    c.nome_campus AS campus,
-    s.codigo AS sala,
-    s.tipo
-FROM sala s
-JOIN campus c ON s.campus_id = c.id_campus
-LEFT JOIN turma_horario th ON th.sala_id = s.id_sala
-WHERE th.id_turma_horario IS NULL
-ORDER BY c.nome_campus, s.codigo;
+    p.nome_professor,
+    COUNT(t.id_turma) AS total_turmas_alocadas
+FROM professor p
+LEFT JOIN turma t ON p.id_professor = t.professor_id
+GROUP BY p.id_professor, p.nome_professor
+ORDER BY total_turmas_alocadas DESC;
 
--- Consulta 7: Funções de Data e Idade
+-- Consulta 7: Recursiva para árvore de pré-requisitos
+WITH RECURSIVE arvore_prerequisitos AS (
+    SELECT 
+        disciplina_id, 
+        requisito_id, 
+        1 AS nivel_profundidade
+    FROM pre_requisito
+    UNION ALL
+    SELECT 
+        pr.disciplina_id, 
+        ap.requisito_id, 
+        ap.nivel_profundidade + 1
+    FROM pre_requisito pr
+    JOIN arvore_prerequisitos ap ON pr.requisito_id = ap.disciplina_id
+)
 SELECT 
+    d.nome AS disciplina_alvo,
+    req.nome AS dependencia,
+    ap.nivel_profundidade
+FROM arvore_prerequisitos ap
+JOIN disciplina d ON ap.disciplina_id = d.id_disciplina
+JOIN disciplina req ON ap.requisito_id = req.id_disciplina
+ORDER BY d.nome, ap.nivel_profundidade;
+
+-- Consulta 8: Recursiva para disciplinas que um aluno pode cursar
+WITH RECURSIVE trilha_aluno AS (
+    SELECT 
+        curriculo_id, 
+        disciplina_id, 
+        periodo
+    FROM curriculo_disciplina
+    WHERE periodo = 1
+    UNION ALL
+    SELECT 
+        cd_next.curriculo_id, 
+        cd_next.disciplina_id, 
+        cd_next.periodo
+    FROM trilha_aluno ta
+    JOIN curriculo_disciplina cd_next ON ta.curriculo_id = cd_next.curriculo_id
+    WHERE cd_next.periodo = ta.periodo + 1
+)
+SELECT DISTINCT 
     c.nome_curso,
-    ROUND(AVG(EXTRACT(YEAR FROM AGE(CURRENT_DATE, a.nascimento))), 1) AS media_idade_curso
-FROM aluno a
-JOIN curriculo cur ON a.curriculo_id = cur.id_curriculo
+    ta.periodo,
+    d.nome AS disciplina_liberada
+FROM trilha_aluno ta
+JOIN curriculo cur ON ta.curriculo_id = cur.id_curriculo
 JOIN curso c ON cur.curso_id = c.id_curso
-GROUP BY c.nome_curso
-ORDER BY media_idade_curso;
+JOIN disciplina d ON ta.disciplina_id = d.id_disciplina
+ORDER BY c.nome_curso, ta.periodo;
 
--- Consulta 8: Lógica Condicional (CASE WHEN)
+-- Consulta 9: Função de janela com ranking e percentil
 SELECT 
-    a.nome_aluno,
     d.nome AS disciplina,
-    h.nota_a1,
-    h.nota_a2,
-    ((h.nota_a1 + h.nota_a2) / 2) AS media_calculada,
-    CASE 
-        WHEN ((h.nota_a1 + h.nota_a2) / 2) >= 7 THEN 'Aprovado Direto'
-        WHEN ((h.nota_a1 + h.nota_a2) / 2) >= 5 THEN 'Exame Final'
-        ELSE 'Reprovado'
-    END AS status_projetado
+    a.nome_aluno,
+    h.media_final,
+    RANK() OVER(PARTITION BY d.id_disciplina ORDER BY h.media_final DESC) AS ranking_turma,
+    ROUND(PERCENT_RANK() OVER(PARTITION BY d.id_disciplina ORDER BY h.media_final DESC)::numeric, 2) AS percentil
 FROM historico h
 JOIN matricula m ON h.matricula_id = m.id_matricula
 JOIN aluno a ON m.aluno_id = a.id_aluno
 JOIN turma t ON m.turma_id = t.id_turma
-JOIN disciplina d ON t.disciplina_id = d.id_disciplina
-ORDER BY a.nome_aluno, d.nome;
+JOIN disciplina d ON t.disciplina_id = d.id_disciplina;
 
--- Consulta 9: Múltiplos Joins (O Boletim Completo)
+-- Consulta 10: Função de janela com LAG (evolução do rendimento)
 SELECT 
-    a.id_aluno AS matricula,
-    a.nome_aluno AS aluno,
-    c.nome_curso AS curso,
+    a.nome_aluno,
     d.nome AS disciplina,
-    p.nome_professor AS professor,
-    h.frequencia
-FROM aluno a
-JOIN curriculo cur ON a.curriculo_id = cur.id_curriculo
-JOIN curso c ON cur.curso_id = c.id_curso
-JOIN matricula m ON m.aluno_id = a.id_aluno
-JOIN historico h ON h.matricula_id = m.id_matricula
+    h.media_final AS nota_atual,
+    LAG(h.media_final) OVER(PARTITION BY a.id_aluno ORDER BY t.codigo) AS nota_anterior,
+    h.media_final - LAG(h.media_final) OVER(PARTITION BY a.id_aluno ORDER BY t.codigo) AS variacao_rendimento
+FROM historico h
+JOIN matricula m ON h.matricula_id = m.id_matricula
+JOIN aluno a ON m.aluno_id = a.id_aluno
 JOIN turma t ON m.turma_id = t.id_turma
-JOIN disciplina d ON t.disciplina_id = d.id_disciplina
-JOIN professor p ON t.professor_id = p.id_professor
-WHERE h.frequencia < 75.00
-ORDER BY h.frequencia ASC;
-
--- Consulta 10: Funções de Janela (Window Functions)
-SELECT 
-    disciplina,
-    aluno,
-    media,
-    posicao_ranking
-FROM (
-    SELECT 
-        d.nome AS disciplina,
-        a.nome_aluno AS aluno,
-        ((h.nota_a1 + h.nota_a2) / 2) AS media,
-        RANK() OVER(PARTITION BY d.nome ORDER BY ((h.nota_a1 + h.nota_a2) / 2) DESC) AS posicao_ranking
-    FROM historico h
-    JOIN matricula m ON h.matricula_id = m.id_matricula
-    JOIN aluno a ON m.aluno_id = a.id_aluno
-    JOIN turma t ON m.turma_id = t.id_turma
-    JOIN disciplina d ON t.disciplina_id = d.id_disciplina
-) AS ranking_disciplina
-WHERE posicao_ranking <= 3;
+JOIN disciplina d ON t.disciplina_id = d.id_disciplina;
