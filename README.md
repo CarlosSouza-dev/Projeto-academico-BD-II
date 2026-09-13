@@ -22,13 +22,9 @@ O ambiente já foi previamente configurado pelo professor no arquivo `docker-com
 ### Passo 2: Ordem de Execução dos Scripts
 Conecte-se ao banco utilizando as credenciais definidas no ambiente oficial e execute os scripts SQL localizados na raiz deste repositório, **estritamente na ordem numérica abaixo**:
 
-1. **01_ddl_estruturas.sql**: Criação de tipos, domínios e tabelas independentes (Marco 1).
-2. **02_ddl_tabelas_dependentes.sql**: Criação das tabelas com chaves estrangeiras e regras de integridade (Marco 1).
-3. **03_carga_dados.sql**: Inserção de dados iniciais, alunos, turmas e matrículas (Marco 1).
-4. **04_consultas.sql**: As 10 consultas exigidas no projeto (Marco 1).
-5. **05_views_seguranca.sql**: Criação de views, materialized views, roles e RLS (Marco 2).
-6. **06_indices.sql**: Criação dos índices de otimização (Marco 2).
-7. **07_concorrencia.sql**: Script de simulação e correção da anomalia de transação (Marco 2).
+1. **01_ddl_inicial.sql**: Criação de tipos, domínios e tabelas independentes (Marco 1).
+2. **02_dml_carga.sql**: Criação das tabelas com chaves estrangeiras e regras de integridade (Marco 1).
+3. **03_dql_consultas.sql**: Inserção de dados iniciais, alunos, turmas e matrículas (Marco 1).
 
 ### Passo 3: Backup e Restauração
 *As instruções e o comando exato de dump e restore serão documentados aqui pela Frente 3 (Administração e Operação) para a entrega do Marco 2.*
