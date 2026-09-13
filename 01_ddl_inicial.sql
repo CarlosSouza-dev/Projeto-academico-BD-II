@@ -1,14 +1,18 @@
 -----------------------------------------------------------------
 -- 1. Criação de tipos (ENUM) e domínios (DOMAIN)
 -----------------------------------------------------------------
+DROP SCHEMA IF EXISTS academico CASCADE;
+CREATE SCHEMA academico;
+SET search_path TO academico;
 
+-- Aqui começam os seus comandos CREATE TYPE...
 CREATE TYPE turno_t as ENUM ('Matutino', 'Vespertino', 'Noturno');
 
-CREATE TYPE tipo_sala_t as ENUM ('Teorica', 'Laboratorio', 'Auditorio', 'Hibrida');
+CREATE TYPE tipo_sala_t as ENUM ('TEORICA', 'LABORATORIO', 'AUDITORIO', 'HIBRIDA');
 
 CREATE TYPE status_mat_t as ENUM ('Ativa', 'Trancada', 'Concluida', 'Cancelada');
 
-CREATE TYPE vinculo_t as ENUM ('Obrigatoria', 'Optativa');
+CREATE TYPE vinculo_t as ENUM ('OBRIGATORIA', 'OPTATIVA');
 
 CREATE TYPE situacao_t as ENUM ('Cursando', 'Aprovado', 'Reprovado por Nota', 'Reprovado por Falta');
 
@@ -73,14 +77,14 @@ CREATE TABLE curso (
 
 CREATE TABLE feriado (
     id_feriado INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    dat_a date NOT NULL,
+    data_feriado date NOT NULL,
     descricao varchar(120) NOT NULL,
     campus_id int NOT NULL REFERENCES campus(id_campus)
 );
 
 CREATE TABLE sala (
     id_sala INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    campus_id int NOT NULL REFERENCES campus(id_campus)
+    campus_id int NOT NULL REFERENCES campus(id_campus),
     codigo varchar(20) NOT NULL,
     capacidade smallint NOT NULL CHECK (capacidade > 0),
     tipo tipo_sala_t NOT NULL,
@@ -90,11 +94,11 @@ CREATE TABLE sala (
 CREATE TABLE turma (
     id_turma INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     codigo varchar(20) NOT NULL,
-    disciplina_id int NOT NULL REFERENCES disciplina(id_disciplina), --
+    disciplina_id int NOT NULL REFERENCES disciplina(id_disciplina),
     periodo_letivo_id int NOT NULL REFERENCES periodo_letivo(id_periodo_letivo),
     professor_id int NOT NULL REFERENCES professor(id_professor),
     turno turno_t NOT NULL,
-    vagas smallint NOT NULL (vagas >= 0),
+    vagas smallint NOT NULL CHECK (vagas >= 0),
     UNIQUE (codigo, disciplina_id, periodo_letivo_id)
 );
 
@@ -102,9 +106,9 @@ CREATE TABLE turma (
 
 CREATE TABLE curriculo (
     id_curriculo INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    curso_id int NOT NULL REFERENCES curso(id_curso)
+    curso_id int NOT NULL REFERENCES curso(id_curso),
     ano_vigencia smallint NOT NULL,
-    ativo_curriculo boolean NOT NULL DEFAUT true,
+    ativo_curriculo boolean NOT NULL DEFAULT true,
     UNIQUE (curso_id, ano_vigencia)
 );
 
@@ -160,9 +164,9 @@ CREATE TABLE historico (
     matricula_id int UNIQUE NOT NULL REFERENCES matricula(id_matricula),
     nota_a1 nota_t,
     nota_a2 nota_t,
-    nota_a3 nota_t,
+    nota_p3 nota_t,
     frequencia pct_t,
-    situacao situacao_t
+    situacao situacao_t,
     media_final nota_t GENERATED ALWAYS AS (
         GREATEST(
             COALESCE((nota_a1 * 0.4) + (nota_a2 * 0.6), 0),
