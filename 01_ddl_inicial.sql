@@ -1,173 +1,181 @@
 -----------------------------------------------------------------
--- 1. Criação de tipos (ENUM) e domínios (DOMAIN)
+-- 01_ddl_inicial.sql
+-- Sistema de Matrícula Acadêmica (IESB) - Banco de Dados II 2026/2
+-- Cria o schema, os tipos (ENUM), os domínios e TODAS as tabelas.
+-- Nomes das tabelas e colunas seguem o diagrama oficial (prefixo tb_).
 -----------------------------------------------------------------
 DROP SCHEMA IF EXISTS academico CASCADE;
 CREATE SCHEMA academico;
 SET search_path TO academico;
 
--- Aqui começam os seus comandos CREATE TYPE...
-CREATE TYPE turno_t as ENUM ('Matutino', 'Vespertino', 'Noturno');
+-----------------------------------------------------------------
+-- 1. Tipos (ENUM) e domínios (DOMAIN)
+-----------------------------------------------------------------
+CREATE TYPE turno_t AS ENUM ('Matutino', 'Vespertino', 'Noturno');
 
-CREATE TYPE tipo_sala_t as ENUM ('TEORICA', 'LABORATORIO', 'AUDITORIO', 'HIBRIDA');
+CREATE TYPE tipo_sala_t AS ENUM ('TEORICA', 'LABORATORIO', 'AUDITORIO', 'HIBRIDA');
 
-CREATE TYPE status_mat_t as ENUM ('Ativa', 'Trancada', 'Concluida', 'Cancelada');
+CREATE TYPE status_mat_t AS ENUM ('Ativa', 'Trancada', 'Concluida', 'Cancelada');
 
-CREATE TYPE vinculo_t as ENUM ('OBRIGATORIA', 'OPTATIVA');
+CREATE TYPE vinculo_t AS ENUM ('OBRIGATORIA', 'OPTATIVA');
 
-CREATE TYPE situacao_t as ENUM ('Cursando', 'Aprovado', 'Reprovado por Nota', 'Reprovado por Falta');
+CREATE TYPE situacao_t AS ENUM ('Cursando', 'Aprovado', 'Reprovado por Nota', 'Reprovado por Falta');
 
-CREATE DOMAIN nota_t as numeric(4,2) check (value >= 0.00 and value <=10.00);
+CREATE DOMAIN nota_t AS numeric(4,2) CHECK (VALUE >= 0.00 AND VALUE <= 10.00);
 
-CREATE DOMAIN pct_t as numeric(5,2) check (value >= 0.00 and value <=100.00);
+CREATE DOMAIN pct_t AS numeric(5,2) CHECK (VALUE >= 0.00 AND VALUE <= 100.00);
 
------------------------------
--- 1.2. Tabelas independentes
------------------------------
+-----------------------------------------------------------------
+-- 2. Tabelas independentes (Nível 0)
+-----------------------------------------------------------------
 
--- Nível 0
-
-CREATE TABLE campus (
+CREATE TABLE tb_campus (
     id_campus int GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     nome_campus varchar(120) UNIQUE NOT NULL,
     cidade varchar(120) NOT NULL
 );
 
-CREATE TABLE professor (
+CREATE TABLE tb_professor (
     id_professor int GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    matricula_professor char(20) UNIQUE NOT NULL,
+    matricula_professor varchar(20) UNIQUE NOT NULL,
     nome_professor varchar(120) NOT NULL,
-    email_professor varchar(120) NOT NULL,
+    email_professor varchar(120) UNIQUE NOT NULL,
     titulacao varchar(120)
 );
 
-CREATE TABLE disciplina (
+CREATE TABLE tb_disciplina (
     id_disciplina int GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     codigo varchar(20) UNIQUE NOT NULL,
     nome varchar(120) UNIQUE NOT NULL,
-    ch_teorico smallint NOT NULL DEFAULT 0,
-    ch_pratica smallint NOT NULL DEFAULT 0,
+    ch_teorico smallint NOT NULL DEFAULT 0 CHECK (ch_teorico >= 0),
+    ch_pratica smallint NOT NULL DEFAULT 0 CHECK (ch_pratica >= 0),
     -- Coluna gerada
     ch_total_disciplina smallint GENERATED ALWAYS AS (ch_teorico + ch_pratica) STORED,
     ementa text
 );
 
-CREATE TABLE periodo_letivo (
-    id_periodo_letivo INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+CREATE TABLE tb_periodo_letivo (
+    id_periodo_letivo int GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     ano smallint NOT NULL,
-    semestre smallint NOT NULL,
+    semestre smallint NOT NULL CHECK (semestre IN (1, 2)),
     data_inicio date NOT NULL,
     data_fim date NOT NULL,
-    UNIQUE (ano, semestre)
+    UNIQUE (ano, semestre),
+    CHECK (data_fim > data_inicio)
 );
 
 -----------------------------------------------------------------
--- 2. Tabelas Dependentes
+-- 3. Tabelas dependentes
 -----------------------------------------------------------------
 
 -- Nível 1
 
-CREATE TABLE curso (
-    id_curso INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    codigo varchar(20) UNIQUE NOT NULL,
+CREATE TABLE tb_curso (
+    id_curso int GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id_campus int NOT NULL REFERENCES tb_campus(id_campus),
+    ch_total_curso int NOT NULL CHECK (ch_total_curso > 0),
+    codigo varchar(120) UNIQUE NOT NULL,
     nome_curso varchar(120) NOT NULL,
-    grau varchar(50) NOT NULL,
-    ch_total_curso int NOT NULL,
-    campus_id int NOT NULL REFERENCES campus(id_campus)
+    grau varchar(50) NOT NULL
 );
 
-CREATE TABLE feriado (
-    id_feriado INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    data_feriado date NOT NULL,
+CREATE TABLE tb_feriado (
+    id_feriado int GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id_campus int NOT NULL REFERENCES tb_campus(id_campus),
     descricao varchar(120) NOT NULL,
-    campus_id int NOT NULL REFERENCES campus(id_campus)
+    data date NOT NULL
 );
 
-CREATE TABLE sala (
-    id_sala INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    campus_id int NOT NULL REFERENCES campus(id_campus),
+CREATE TABLE tb_sala (
+    id_sala int GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id_campus int NOT NULL REFERENCES tb_campus(id_campus),
     codigo varchar(20) NOT NULL,
     capacidade smallint NOT NULL CHECK (capacidade > 0),
     tipo tipo_sala_t NOT NULL,
-    UNIQUE (campus_id, codigo)
+    UNIQUE (id_campus, codigo)
 );
 
-CREATE TABLE turma (
-    id_turma INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+CREATE TABLE tb_turma (
+    id_turma int GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id_disciplina int NOT NULL REFERENCES tb_disciplina(id_disciplina),
+    id_periodo_letivo int NOT NULL REFERENCES tb_periodo_letivo(id_periodo_letivo),
+    id_professor int NOT NULL REFERENCES tb_professor(id_professor),
     codigo varchar(20) NOT NULL,
-    disciplina_id int NOT NULL REFERENCES disciplina(id_disciplina),
-    periodo_letivo_id int NOT NULL REFERENCES periodo_letivo(id_periodo_letivo),
-    professor_id int NOT NULL REFERENCES professor(id_professor),
     turno turno_t NOT NULL,
     vagas smallint NOT NULL CHECK (vagas >= 0),
-    UNIQUE (codigo, disciplina_id, periodo_letivo_id)
+    UNIQUE (codigo, id_disciplina, id_periodo_letivo)
 );
 
 -- Nível 2
 
-CREATE TABLE curriculo (
-    id_curriculo INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    curso_id int NOT NULL REFERENCES curso(id_curso),
-    ano_vigencia smallint NOT NULL,
+CREATE TABLE tb_curriculo (
+    id_curriculo int GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id_curso int NOT NULL REFERENCES tb_curso(id_curso),
+    ano_vigente smallint NOT NULL,
     ativo_curriculo boolean NOT NULL DEFAULT true,
-    UNIQUE (curso_id, ano_vigencia)
+    UNIQUE (id_curso, ano_vigente)
 );
 
-CREATE TABLE turma_horario (
-    id_turma_horario INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    turma_id int NOT NULL REFERENCES turma(id_turma),
-    sala_id int NOT NULL REFERENCES sala(id_sala),
-    dia_semana smallint NOT NULL CHECK (dia_semana BETWEEN 1 AND 7),
-    faixa varchar(20) NOT NULL
+CREATE TABLE tb_turma_horario (
+    id_turma_horario int GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id_turma int NOT NULL REFERENCES tb_turma(id_turma),
+    id_sala int NOT NULL REFERENCES tb_sala(id_sala),
+    faixa varchar(20) NOT NULL,
+    dia_semana smallint NOT NULL CHECK (dia_semana BETWEEN 1 AND 7)
 );
 
 -- Nível 3
 
-CREATE TABLE aluno (
-    id_aluno INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+CREATE TABLE tb_aluno (
+    id_aluno int GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id_curriculo int NOT NULL REFERENCES tb_curriculo(id_curriculo),
+    cpf char(11) UNIQUE NOT NULL CHECK (cpf ~ '^[0-9]{11}$'),
     nome_aluno varchar(120) NOT NULL,
-    cpf char(11) UNIQUE NOT NULL,
     email_aluno varchar(120) UNIQUE NOT NULL,
     nascimento date NOT NULL,
-    curriculo_id int NOT NULL REFERENCES curriculo(id_curriculo),
     ingresso_aluno smallint NOT NULL,
     ativo_aluno boolean NOT NULL DEFAULT true
 );
 
-CREATE TABLE curriculo_disciplina (
-    curriculo_id int NOT NULL REFERENCES curriculo(id_curriculo),
-    disciplina_id int NOT NULL REFERENCES disciplina(id_disciplina),
-    periodo smallint NOT NULL,
+CREATE TABLE tb_curriculo_disciplina (
+    id_curriculo int NOT NULL REFERENCES tb_curriculo(id_curriculo),
+    id_disciplina int NOT NULL REFERENCES tb_disciplina(id_disciplina),
+    periodo smallint NOT NULL CHECK (periodo > 0),
     tipo vinculo_t NOT NULL,
-    PRIMARY KEY (curriculo_id, disciplina_id)
+    PRIMARY KEY (id_curriculo, id_disciplina)
 );
 
-CREATE TABLE pre_requisito (
-    requisito_id int NOT NULL REFERENCES disciplina(id_disciplina),
-    disciplina_id int NOT NULL REFERENCES disciplina(id_disciplina),
+CREATE TABLE tb_pre_requisito (
+    id_requisito int NOT NULL REFERENCES tb_disciplina(id_disciplina),
+    id_disciplina int NOT NULL REFERENCES tb_disciplina(id_disciplina),
     vinculo vinculo_t NOT NULL,
-    PRIMARY KEY (requisito_id, disciplina_id)
+    PRIMARY KEY (id_requisito, id_disciplina),
+    CHECK (id_requisito <> id_disciplina)   -- disciplina não pode ser pré-requisito de si mesma
 );
 
---Nível 4
+-- Nível 4
 
-CREATE TABLE matricula (
-    id_matricula INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    aluno_id int NOT NULL REFERENCES aluno(id_aluno),
-    turma_id int NOT NULL REFERENCES turma(id_turma),
-    data_matricula date NOT NULL DEFAULT current_timestamp,
+CREATE TABLE tb_matricula (
+    id_matricula int GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id_aluno int NOT NULL REFERENCES tb_aluno(id_aluno),
+    id_turma int NOT NULL REFERENCES tb_turma(id_turma),
+    data_matricula date NOT NULL DEFAULT CURRENT_DATE,
     status_matricula status_mat_t NOT NULL,
-    UNIQUE (turma_id, aluno_id)
+    UNIQUE (id_turma, id_aluno)
 );
 
-CREATE TABLE historico (
-    id_historico INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    matricula_id int UNIQUE NOT NULL REFERENCES matricula(id_matricula),
+-- Nível 5
+
+CREATE TABLE tb_historico (
+    id_historico int GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id_matricula int UNIQUE NOT NULL REFERENCES tb_matricula(id_matricula),
     nota_a1 nota_t,
     nota_a2 nota_t,
     nota_p3 nota_t,
     frequencia pct_t,
     situacao situacao_t,
-    media_final nota_t GENERATED ALWAYS AS (
+    -- Coluna gerada: a P3 substitui a menor entre A1 e A2 (vale o melhor resultado)
+    media_geral nota_t GENERATED ALWAYS AS (
         GREATEST(
             COALESCE((nota_a1 * 0.4) + (nota_a2 * 0.6), 0),
             COALESCE((nota_a1 * 0.4) + (nota_p3 * 0.6), 0),
@@ -176,11 +184,11 @@ CREATE TABLE historico (
     ) STORED
 );
 
-CREATE TABLE log_matricula (
-    id_log_matricula INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    matricula_id int NOT NULL REFERENCES matricula(id_matricula),
+CREATE TABLE tb_log_matricula (
+    id_log_matricula int GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id_matricula int NOT NULL REFERENCES tb_matricula(id_matricula),
     acao varchar(50) NOT NULL,
-    ocorrido_em timestamp NOT NULL DEFAULT current_timestamp,
     usuario varchar(120) NOT NULL,
+    ocorrido_em timestamp NOT NULL DEFAULT current_timestamp,
     detalhe text
 );

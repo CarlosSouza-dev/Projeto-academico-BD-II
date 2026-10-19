@@ -14,17 +14,19 @@ O ambiente oficial deste projeto utiliza a imagem do **PostgreSQL 17** pré-conf
 O ambiente já foi previamente configurado pelo professor no arquivo `docker-compose.yml`. Para iniciar o banco de dados:
 
 1. Abra o Prompt de Comando (CMD) ou o terminal da sua máquina.
-2. Navegue até a pasta `ambiente_aluno` onde o arquivo `.yml` está localizado[cite: 3], usando o comando `cd` e o caminho entre aspas. Exemplo:
+2. Navegue até a pasta `ambiente_aluno` onde o arquivo `.yml` está localizado, usando o comando `cd` e o caminho entre aspas. Exemplo:
    `cd "C:\caminho\para\a\pasta\ambiente_aluno"`
 3. Execute o comando para subir o contêiner em segundo plano:
    `docker compose up -d`
 
 ### Passo 2: Ordem de Execução dos Scripts
-Conecte-se ao banco utilizando as credenciais definidas no ambiente oficial e execute os scripts SQL localizados na raiz deste repositório, **estritamente na ordem numérica abaixo**:
+Conecte-se ao banco utilizando as credenciais definidas no ambiente oficial e execute os scripts SQL localizados na raiz deste repositório, **estritamente na ordem numérica abaixo** (todos os arquivos estão em UTF-8):
 
-1. **01_ddl_inicial.sql**: Criação de tipos, domínios e tabelas independentes (Marco 1).
-2. **02_dml_carga.sql**: Criação das tabelas com chaves estrangeiras e regras de integridade (Marco 1).
-3. **03_dql_consultas.sql**: Inserção de dados iniciais, alunos, turmas e matrículas (Marco 1).
+1. **01_ddl_inicial.sql**: recria o schema `academico` do zero e cria tipos (ENUM), domínios e todas as tabelas (`tb_*`) com chaves e restrições de integridade (Marco 1).
+2. **02_dml_carga.sql**: carga de dados — 100 alunos, 6 turmas e 300 matrículas, além de campus, cursos, currículos, disciplinas, pré-requisitos, salas e horários (Marco 1).
+3. **03_dql_consultas.sql**: 10 consultas de complexidade crescente, incluindo junção externa, consultas recursivas e funções de janela (Marco 1).
+
+> Atenção: o `01_ddl_inicial.sql` executa `DROP SCHEMA academico CASCADE`; rodá-lo apaga todos os dados existentes no schema.
 
 ### Passo 3: Backup e Restauração
 *As instruções e o comando exato de dump e restore serão documentados aqui pela Frente 3 (Administração e Operação) para a entrega do Marco 2.*
