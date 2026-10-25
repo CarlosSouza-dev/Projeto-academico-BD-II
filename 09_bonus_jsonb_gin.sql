@@ -10,6 +10,10 @@
 --      de status.
 -- Rode APÓS 01 a 07 (idempotente).
 --
+-- pgAdmin: execute o arquivo INTEIRO (F5). As mensagens do teste do CHECK aparecem em
+-- "Messages"; a última consulta (logs_restantes = 0) aparece em "Data Output".
+-- Para mostrar cada passo ao vivo, SELECIONE o trecho da demonstração e execute.
+--
 -- Por que GIN e não B-tree? O B-tree ordena valores inteiros; só serve para
 -- igualdade/ordem da coluna toda. O GIN é um índice INVERTIDO: indexa cada
 -- chave/valor DENTRO do documento e responde "quais linhas contêm
@@ -78,9 +82,14 @@ CREATE TRIGGER trg_matricula_log_status
     EXECUTE FUNCTION fn_log_matricula();
 
 -----------------------------------------------------------------
--- Demonstração (tudo dentro de uma transação que é DESFEITA no final)
+-- Demonstração (a parte entre BEGIN e ROLLBACK é DESFEITA no final)
 -----------------------------------------------------------------
-\echo '=== O CHECK recusa texto que não é JSON ==='
+-- COMMIT: confirma o que foi criado acima. Sem ele, o ROLLBACK da demonstração
+-- desfaria também o CHECK, o índice e as triggers, porque o pgAdmin envia o
+-- arquivo como UMA transação só.
+COMMIT;
+
+-- 1) O CHECK recusa texto que não é JSON (mensagem em "Messages")
 DO $$
 BEGIN
     BEGIN
@@ -93,7 +102,7 @@ BEGIN
 END $$;
 
 BEGIN;
-\echo '=== Matricular o aluno 91 na turma 5 e depois cancelar: o log é gravado sozinho ==='
+-- 2) Matricular o aluno 91 na turma 5 e depois cancelar: o log é gravado sozinho
 INSERT INTO tb_matricula (id_aluno, id_turma, status_matricula) VALUES (91, 5, 'Ativa');
 UPDATE tb_matricula SET status_matricula = 'Cancelada' WHERE id_aluno = 91 AND id_turma = 5;
 
@@ -101,18 +110,18 @@ SELECT acao, usuario, detalhe::jsonb AS detalhe
 FROM tb_log_matricula
 ORDER BY id_log_matricula;
 
-\echo '=== Busca por conteúdo do JSON (operador @>, atendido pelo GIN) ==='
+-- 3) Busca por conteúdo do JSON (operador @>, atendido pelo GIN)
 SELECT id_log_matricula, acao, detalhe::jsonb ->> 'status_novo' AS status_novo
 FROM tb_log_matricula
 WHERE detalhe::jsonb @> '{"id_aluno": 91, "id_turma": 5}';
 
-\echo '=== O planner usa o GIN? Com 2 linhas ele prefere varrer a tabela (é mais barato);'
-\echo '=== forçamos o índice só para mostrar o plano. Com 200 mil linhas ele o escolhe sozinho'
-\echo '=== (veja evidencias_explain.txt, consulta 5).'
+-- 4) O planner usa o GIN? Com 2 linhas ele prefere varrer a tabela (é mais barato);
+--    forçamos o índice só para mostrar o plano. Com 200 mil linhas ele o escolhe
+--    sozinho (veja evidencias_explain.txt, consulta 5).
 SET LOCAL enable_seqscan = off;
 EXPLAIN (COSTS OFF)
 SELECT id_log_matricula FROM tb_log_matricula WHERE detalhe::jsonb @> '{"id_aluno": 91}';
 ROLLBACK;
 
-\echo '=== Estado restaurado: sem logs de demonstração ==='
+-- 5) Estado restaurado: sem logs de demonstração (última consulta; deve dar 0)
 SELECT COUNT(*) AS logs_restantes FROM tb_log_matricula;

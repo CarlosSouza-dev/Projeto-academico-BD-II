@@ -13,12 +13,14 @@
 --   C) 10 vagas livres, pausa 0,2 s -> há vaga para todos: contenção "à toa"
 --   D) 1 vaga livre,  SEM pausa    -> janela mínima: o erro ainda acontece?
 --
--- Rode APÓS 06, 06b e 06c. Demora cerca de 1 minuto. Os tempos variam por
+-- Rode APÓS 06, 06b e 06c. Demora cerca de 1 minuto. No pgAdmin execute o arquivo
+-- inteiro (F5): a tabela comparativa é a última consulta. Os tempos variam por
 -- máquina; o que não varia é a correção (overbooking) e a ordem de grandeza
 -- das retentativas.
 -----------------------------------------------------------------
 SET search_path TO academico, public;
 
+DROP TABLE IF EXISTS pg_temp.rodadas;
 CREATE TEMP TABLE rodadas (
     cenario text, repeticao int, modo text, concorrentes int, vagas_livres int, pausa numeric,
     matriculados int, sem_vaga int, retentativas int, overbooking int, duracao_ms numeric);
@@ -51,7 +53,10 @@ BEGIN
     PERFORM sp_limpar_disputa();
 END $$;
 
-\echo '=== Resumo por cenário e modo (média das repetições) ==='
+-- Estado final restaurado: a turma 1 volta a ter 1 vaga livre (deve mostrar COM VAGAS)
+SELECT id_turma, vagas, ocupadas, livres, situacao_vagas FROM v_vagas WHERE id_turma = 1;
+
+-- RESUMO por cenário e modo (média das repetições): última consulta
 SELECT cenario,
        vagas_livres,
        pausa,
@@ -65,6 +70,3 @@ SELECT cenario,
 FROM rodadas
 GROUP BY cenario, vagas_livres, pausa, modo
 ORDER BY cenario, CASE modo WHEN 'ingenuo' THEN 1 WHEN 'bloqueio' THEN 2 ELSE 3 END;
-
-\echo '=== Estado final restaurado (turma 1 com 1 vaga livre) ==='
-SELECT id_turma, vagas, ocupadas, livres, situacao_vagas FROM v_vagas WHERE id_turma = 1;

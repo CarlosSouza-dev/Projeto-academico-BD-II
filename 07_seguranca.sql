@@ -4,6 +4,11 @@
 -- Rode APÓS 01 a 06 (usa views, MV e funções criadas antes) como o dono
 -- do schema / superusuário. Pode ser reexecutado sem erro.
 --
+-- pgAdmin: execute o arquivo INTEIRO (F5). Os testes (OK / FALHA) aparecem na aba
+-- "Messages"; a última consulta (as policies criadas) aparece em "Data Output".
+-- Para mostrar o RLS ao vivo, selecione só o trecho da seção 4 e execute.
+-- Se um teste falhar, o script inteiro é desfeito (o pgAdmin o executa como uma só transação).
+--
 -- MODELO DE ACESSO
 --   aluno        -> só enxerga o que é SEU (RLS) + oferta e vagas (views)
 --   secretaria   -> opera matrículas/notas; lê tudo; nunca apaga histórico
@@ -178,31 +183,32 @@ CREATE POLICY pol_coordenacao_leitura ON tb_historico FOR SELECT TO coordenacao 
 
 -----------------------------------------------------------------
 -- 4. DEMONSTRAÇÃO (para a apresentação): o aluno 3 vê só o que é dele
+-- Execute cada bloco SELECIONANDO-O (o pgAdmin mostra o resultado da última
+-- consulta do trecho selecionado). SET ROLE "vira" o aluno; RESET ROLE volta.
 -----------------------------------------------------------------
-\echo '=== Como dono/superusuário: todo o histórico ==='
+-- 4.1 Como dono/superusuário: todo o histórico (300 linhas)
 SELECT COUNT(*) AS linhas_de_historico, COUNT(DISTINCT m.id_aluno) AS alunos
 FROM tb_historico h JOIN tb_matricula m ON m.id_matricula = h.id_matricula;
 
-\echo '=== Como aluno_3 (SET ROLE): só as próprias linhas ==='
+-- 4.2 Como aluno_3: só as próprias linhas (4)
 SET ROLE aluno_3;
-SELECT current_user AS papel, fn_id_aluno_logado() AS id_aluno_logado;
-SELECT COUNT(*) AS linhas_de_historico_visiveis FROM tb_historico;
-SELECT nome_aluno, disciplina, media_geral, situacao FROM v_historico ORDER BY disciplina;
-\echo '--- tentando espiar o aluno 4 (id_aluno = 4): 0 linhas ---'
-SELECT COUNT(*) AS linhas_do_aluno_4 FROM v_historico WHERE id_aluno = 4;
-SELECT COUNT(*) AS cadastros_visiveis FROM tb_aluno;
+SELECT current_user AS papel, fn_id_aluno_logado() AS id_aluno_logado,
+       (SELECT COUNT(*) FROM tb_historico) AS linhas_de_historico_visiveis,
+       (SELECT COUNT(*) FROM v_historico)  AS linhas_pela_view,
+       (SELECT COUNT(*) FROM v_historico WHERE id_aluno = 4) AS linhas_do_aluno_4,
+       (SELECT COUNT(*) FROM tb_aluno)     AS cadastros_visiveis;
 RESET ROLE;
 
-\echo '=== Como coordenacao: lê tudo, não escreve ==='
+-- 4.3 Como coordenacao: lê tudo, não escreve
 SET ROLE coordenacao;
-SELECT COUNT(*) AS linhas_de_historico_visiveis FROM tb_historico;
-SELECT disciplina, matriculas, media_geral_media FROM mv_indicadores_disciplina ORDER BY disciplina LIMIT 3;
+SELECT (SELECT COUNT(*) FROM tb_historico) AS linhas_de_historico_visiveis,
+       (SELECT COUNT(*) FROM mv_indicadores_disciplina) AS linhas_de_indicadores;
 RESET ROLE;
 
 -----------------------------------------------------------------
 -- 5. TESTES AUTOMÁTICOS (falham com erro se algo estiver aberto demais)
 -----------------------------------------------------------------
-\echo '=== Testes de segurança ==='
+-- Cada teste tenta algo e confere o resultado. Mensagens OK/FALHA: aba "Messages".
 DO $$
 DECLARE
     v_total_hist   int;
@@ -335,6 +341,7 @@ BEGIN
         RAISE NOTICE 'OK  papel de grupo "aluno" (sem id de aluno) não enxerga nenhuma linha';
     END;
 
+    RESET ROLE;     -- SET LOCAL ROLE dura até o fim da transação; no pgAdmin o arquivo todo é UMA transação
     RAISE NOTICE 'TODOS OS TESTES DE SEGURANÇA PASSARAM';
 END $$;
 
@@ -363,3 +370,9 @@ BEGIN
     RAISE NOTICE 'OK  secretaria matricula o aluno 91 na turma 1 pela função segura (%)', v_res;
     PERFORM sp_limpar_disputa();        -- desfaz o teste: devolve a turma ao estado original
 END $$;
+
+-- Resumo (última consulta): as policies de RLS criadas
+SELECT tablename AS tabela, policyname AS policy, roles, cmd AS comando
+FROM pg_policies
+WHERE schemaname = 'academico'
+ORDER BY tablename, policyname;

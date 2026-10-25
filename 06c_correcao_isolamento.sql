@@ -63,23 +63,33 @@ $$;
 --   se erro SQLSTATE 40001 (serialization_failure) ou 40P01 (deadlock_detected):
 --       ROLLBACK e repita desde o BEGIN (com limite de tentativas)
 
+-- COMO EXECUTAR NO pgAdmin (Query Tool): abra o arquivo e execute TUDO (F5). O pgAdmin
+-- manda o arquivo como UM comando só e mostra, em "Data Output", apenas o resultado da
+-- ÚLTIMA consulta (aqui, o resumo da disputa). Para mostrar cada passo na apresentação,
+-- SELECIONE o trecho desejado e execute (F5 executa só a seleção).
+-- O COMMIT abaixo é necessário: as sessões do dblink são outras conexões e só enxergam
+-- funções já confirmadas.
+COMMIT;
+
 -----------------------------------------------------------------
 -- Mesmo experimento do 06: 10 alunos disputam a última vaga da turma 1
 -----------------------------------------------------------------
-\echo '--- Disputa simultânea (10 sessões) com a correção por SERIALIZABLE + retentativa ---'
-SELECT * FROM sp_simular_disputa('serializable');
+-- (a) Disputa simultânea (10 sessões) com SERIALIZABLE + retentativa
+DROP TABLE IF EXISTS pg_temp.ultima_disputa;
+CREATE TEMP TABLE ultima_disputa AS SELECT * FROM sp_simular_disputa('serializable');
 
-\echo '--- Depois: turma lotada, sem overbooking ---'
+-- (b) Depois: turma lotada, sem overbooking
 SELECT id_turma, codigo_turma, disciplina, vagas, ocupadas, livres, situacao_vagas
 FROM v_vagas WHERE id_turma = 1;
 
-\echo '--- Quem conseguiu a vaga (exatamente 1 dos 10) ---'
+-- (c) Quem conseguiu a vaga (exatamente 1 dos 10)
 SELECT a.id_aluno, a.nome_aluno, m.status_matricula
 FROM tb_matricula m
 JOIN tb_aluno a ON a.id_aluno = m.id_aluno
 WHERE m.id_turma = 1 AND m.id_aluno BETWEEN 91 AND 100;
 
-\echo '--- A trava de segurança funciona: chamar fora de SERIALIZABLE é recusado ---'
+-- (d) A trava de segurança funciona: chamar fora de SERIALIZABLE é recusado
+--     (a mensagem aparece na aba "Messages" do pgAdmin)
 DO $$
 BEGIN
     PERFORM sp_matricular_serializable(91, 1);
@@ -87,5 +97,8 @@ EXCEPTION WHEN raise_exception THEN
     RAISE NOTICE 'OK, recusado: %', SQLERRM;
 END $$;
 
--- Restaura o estado original
+-- (e) Restaura o estado original
 SELECT sp_limpar_disputa();
+
+-- (f) RESUMO (última consulta): retentativas = transações abortadas (40001) e repetidas
+SELECT * FROM ultima_disputa;

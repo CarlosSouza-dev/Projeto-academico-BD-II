@@ -308,19 +308,32 @@ BEGIN
 END;
 $$;
 
+-- COMO EXECUTAR NO pgAdmin (Query Tool): abra o arquivo e execute TUDO (F5). O pgAdmin
+-- manda o arquivo como UM comando só e mostra, em "Data Output", apenas o resultado da
+-- ÚLTIMA consulta (aqui, o resumo da disputa). Para mostrar cada passo na apresentação,
+-- SELECIONE o trecho desejado e execute (F5 executa só a seleção).
+-- O COMMIT abaixo é necessário: as sessões do dblink são outras conexões e só enxergam
+-- funções já confirmadas.
+COMMIT;
+
 -----------------------------------------------------------------
 -- 4. REPRODUZINDO A ANOMALIA: 10 alunos disputam a última vaga da turma 1
 -----------------------------------------------------------------
-\echo '--- Antes: turma 1 com 1 vaga livre ---'
+-- (a) ANTES: turma 1 com 1 vaga livre
 SELECT id_turma, codigo_turma, disciplina, vagas, ocupadas, livres, situacao_vagas
 FROM v_vagas WHERE id_turma = 1;
 
-\echo '--- Disputa simultânea (10 sessões, versão ingênua, READ COMMITTED) ---'
-SELECT * FROM sp_simular_disputa('ingenuo');
+-- (b) Disputa simultânea: 10 sessões, versão ingênua, READ COMMITTED.
+--     O resultado fica guardado na tabela temporária "ultima_disputa".
+DROP TABLE IF EXISTS pg_temp.ultima_disputa;
+CREATE TEMP TABLE ultima_disputa AS SELECT * FROM sp_simular_disputa('ingenuo');
 
-\echo '--- Depois: a view v_vagas denuncia o overbooking (ocupadas > vagas) ---'
+-- (c) DEPOIS: a view v_vagas denuncia o overbooking (ocupadas > vagas)
 SELECT id_turma, codigo_turma, disciplina, vagas, ocupadas, livres, situacao_vagas
 FROM v_vagas WHERE id_turma = 1;
 
--- Restaura o estado original (alunos 91-100 sem matrícula na turma 1)
+-- (d) Restaura o estado original (alunos 91-100 sem matrícula na turma 1)
 SELECT sp_limpar_disputa();
+
+-- (e) RESUMO (última consulta): overbooking = matrículas além do limite de vagas
+SELECT * FROM ultima_disputa;

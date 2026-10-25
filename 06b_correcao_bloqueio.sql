@@ -56,21 +56,33 @@ BEGIN
 END;
 $$;
 
+-- COMO EXECUTAR NO pgAdmin (Query Tool): abra o arquivo e execute TUDO (F5). O pgAdmin
+-- manda o arquivo como UM comando só e mostra, em "Data Output", apenas o resultado da
+-- ÚLTIMA consulta (aqui, o resumo da disputa). Para mostrar cada passo na apresentação,
+-- SELECIONE o trecho desejado e execute (F5 executa só a seleção).
+-- O COMMIT abaixo é necessário: as sessões do dblink são outras conexões e só enxergam
+-- funções já confirmadas.
+COMMIT;
+
 -----------------------------------------------------------------
 -- Mesmo experimento do 06: 10 alunos disputam a última vaga da turma 1
 -----------------------------------------------------------------
-\echo '--- Disputa simultânea (10 sessões) com a correção por BLOQUEIO (FOR UPDATE) ---'
-SELECT * FROM sp_simular_disputa('bloqueio');
+-- (a) Disputa simultânea (10 sessões) com a correção por BLOQUEIO (FOR UPDATE)
+DROP TABLE IF EXISTS pg_temp.ultima_disputa;
+CREATE TEMP TABLE ultima_disputa AS SELECT * FROM sp_simular_disputa('bloqueio');
 
-\echo '--- Depois: turma lotada, sem overbooking ---'
+-- (b) Depois: turma lotada, sem overbooking
 SELECT id_turma, codigo_turma, disciplina, vagas, ocupadas, livres, situacao_vagas
 FROM v_vagas WHERE id_turma = 1;
 
-\echo '--- Quem conseguiu a vaga (exatamente 1 dos 10) ---'
+-- (c) Quem conseguiu a vaga (exatamente 1 dos 10)
 SELECT a.id_aluno, a.nome_aluno, m.status_matricula
 FROM tb_matricula m
 JOIN tb_aluno a ON a.id_aluno = m.id_aluno
 WHERE m.id_turma = 1 AND m.id_aluno BETWEEN 91 AND 100;
 
--- Restaura o estado original
+-- (d) Restaura o estado original
 SELECT sp_limpar_disputa();
+
+-- (e) RESUMO (última consulta)
+SELECT * FROM ultima_disputa;

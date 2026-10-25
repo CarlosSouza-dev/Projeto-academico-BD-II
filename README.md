@@ -4,7 +4,7 @@ Projeto desenvolvido para a disciplina de Banco de Dados II (CCO072) - Semestre 
 
 ## Pré-requisitos
 * [Docker](https://www.docker.com/) instalado.
-* Cliente SQL (ex: DBeaver, pgAdmin ou psql). Os scripts 04 em diante usam comandos do `psql` (`\echo`, `\gexec`...), então devem ser executados **pelo `psql`**.
+* Cliente SQL: **pgAdmin (Query Tool)** ou `psql`. Todos os scripts são SQL puro e rodam nos dois (veja "Executando no pgAdmin" abaixo).
 
 ## Como executar o projeto do zero
 
@@ -18,7 +18,7 @@ O ambiente oficial deste projeto utiliza a imagem do **PostgreSQL 17** pré-conf
 4. Descubra o nome do serviço com `docker compose ps` (abaixo, `<servico>`; `<usuario>` e `<banco>` são os definidos no `docker-compose.yml`).
 
 ### Passo 2: Ordem de execução dos scripts
-Execute os scripts da raiz, **estritamente nesta ordem** (todos em UTF-8). Exemplo de comando para cada arquivo:
+Execute os scripts da raiz, **estritamente nesta ordem** (todos em UTF-8). No pgAdmin: abra cada arquivo e execute-o inteiro (F5). Pelo terminal, um comando por arquivo:
 
 `docker compose exec -T <servico> psql -U <usuario> -d <banco> < 04_views.sql`
 
@@ -36,11 +36,19 @@ Execute os scripts da raiz, **estritamente nesta ordem** (todos em UTF-8). Exemp
 | 10 | `09_bonus_jsonb_gin.sql` | Bônus: JSONB + GIN e triggers de auditoria | 2 |
 
 Scripts **sob demanda** (não alteram os dados ao final):
-* `05b_evidencias_explain.sql`: prova de ganho dos índices em volume (cria e remove o schema `academico_perf`, ~10 s). Gere o arquivo de evidência: `docker compose exec -T <servico> psql -q -U <usuario> -d <banco> < 05b_evidencias_explain.sql > evidencias_explain.txt`
+* `05b_evidencias_explain.sql`: prova de ganho dos índices em volume (cria e remove o schema `academico_perf`, ~10 s). No pgAdmin, os planos ficam na aba *Messages* e na tabela temporária `planos` (`SELECT linha FROM planos ORDER BY ordem;` > *Download as CSV*). Para gerar o arquivo pelo terminal: `docker compose exec -T <servico> psql -q -U <usuario> -d <banco> < 05b_evidencias_explain.sql > evidencias_explain.txt 2>&1`
 * `06d_comparacao_custos.sql`: tabela comparativa das três versões da matrícula (~30 s).
-* `08_verificacao_backup.sql`: impressão digital do schema (usada pelo script de backup).
+* `08_verificacao_backup.sql`: impressão digital do schema (a última linha, *ASSINATURA GERAL*, deve ser igual antes e depois de uma restauração).
 
 > **Atenção:** o `01_ddl_inicial.sql` executa `DROP SCHEMA academico CASCADE`; rodá-lo apaga todos os dados do schema. O `06_anomalia_vagas.sql` cria a extensão `dblink` (já inclusa na imagem oficial) e exige superusuário, que é o usuário do contêiner.
+
+### Executando no pgAdmin (Query Tool)
+1. Selecione o banco do projeto na árvore, abra **Tools > Query Tool** e carregue o arquivo (ícone de pasta, *Open File*). Deixe o **Auto commit** ligado (padrão).
+2. **F5** executa o arquivo inteiro; **selecionando um trecho**, o F5 executa só a seleção. Use isso na apresentação para mostrar cada passo.
+3. O pgAdmin mostra em **Data Output** apenas o resultado da **última** consulta do que foi executado (por isso cada script termina com a consulta-resumo). Mensagens `RAISE NOTICE` (testes OK/FALHA, planos do `05b`) ficam na aba **Messages**.
+4. O pgAdmin envia o arquivo como **um único comando** (uma transação). Os `COMMIT` que aparecem no `05b`, `06*` e `09` são propositais; não os remova. Se algum comando falhar, o arquivo inteiro é desfeito.
+5. Usuário: precisa ser **superusuário** (o do contêiner `POSTGRES_USER` é) por causa da extensão `dblink` (`05b` e `06`).
+6. O backup/restauração (`scripts/backup_restauracao.sh`) roda **dentro do contêiner**, não no pgAdmin (veja o Passo 3).
 
 ### Passo 3: Backup e restauração
 O ciclo completo (impressão digital, backup, restauração e comparação) está em `scripts/backup_restauracao.sh`:
@@ -72,3 +80,4 @@ RESET ROLE;
 * [`docs/comparacao_concorrencia.md`](docs/comparacao_concorrencia.md): anomalia da última vaga e correções.
 * [`docs/backup_restauracao.md`](docs/backup_restauracao.md): backup, restauração e política operacional.
 * [`docs/issues_marco2_revisadas.md`](docs/issues_marco2_revisadas.md): avaliação e texto das issues do Marco 2.
+* [`docs/guia_explicativo.md`](docs/guia_explicativo.md): como cada script funciona (03 a 09), com perguntas prováveis da arguição.

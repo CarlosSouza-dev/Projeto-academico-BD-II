@@ -1,275 +1,235 @@
--- Evidências de desempenho (05b_evidencias_explain.sql)
--- Gerado em 2026-10-25 no PostgreSQL 16.15. Regere no Docker oficial (PG 17): os tempos mudam por máquina.
 =================================================================
  EVIDÊNCIAS DE DESEMPENHO - EXPLAIN (ANALYZE, BUFFERS)
+ Servidor: PostgreSQL 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0, 64-bit
+ Gerado em: 2026-10-25 18:32:46
 =================================================================
-                                                                 servidor                                                                 |      gerado_em      
-------------------------------------------------------------------------------------------------------------------------------------------+---------------------
- PostgreSQL 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0, 64-bit | 2026-10-25 12:35:22
 
- setseed 
----------
- 
-
-
--- Volume de teste (schema academico_perf):
- alunos | turmas | matriculas | matriculas_ativas | historicos | reprovados_falta |  logs  
---------+--------+------------+-------------------+------------+------------------+--------
-  30000 |   9600 |     240000 |             23886 |     240000 |             6370 | 200000
-
+-- Volume de teste (schema academico_perf): 30000 alunos, 9600 turmas, 240000 matrículas (23886 ativas), 240000 históricos (6370 reprovados por falta), 200000 logs
 
 #################################################################
 # ÍNDICE 1: idx_matricula_aluno  (consulta 1)
 #################################################################
 --- ANTES (sem o índice) ---
-                                                                                    QUERY PLAN                                                                                     
------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Gather Merge  (cost=4379.05..4379.63 rows=5 width=28) (actual time=8.718..10.663 rows=8 loops=1)
-   Workers Planned: 1
-   Workers Launched: 1
-   Buffers: shared hit=1628
-   ->  Sort  (cost=3379.04..3379.06 rows=5 width=28) (actual time=6.862..6.871 rows=4 loops=2)
-         Sort Key: pl.ano, pl.semestre
-         Sort Method: quicksort  Memory: 25kB
-         Buffers: shared hit=1628
-         Worker 0:  Sort Method: quicksort  Memory: 25kB
-         ->  Nested Loop  (cost=0.98..3378.99 rows=5 width=28) (actual time=0.896..6.846 rows=4 loops=2)
-               Buffers: shared hit=1621
-               ->  Nested Loop  (cost=0.85..3378.21 rows=5 width=28) (actual time=0.885..6.826 rows=4 loops=2)
-                     Buffers: shared hit=1604
-                     ->  Nested Loop  (cost=0.71..3377.41 rows=5 width=18) (actual time=0.873..6.804 rows=4 loops=2)
-                           Buffers: shared hit=1587
-                           ->  Nested Loop  (cost=0.42..3335.89 rows=5 width=14) (actual time=0.855..6.762 rows=4 loops=2)
-                                 Buffers: shared hit=1562
-                                 ->  Parallel Seq Scan on tb_matricula m  (cost=0.00..3293.71 rows=5 width=8) (actual time=0.813..6.671 rows=4 loops=2)
-                                       Filter: (id_aluno = 12345)
-                                       Rows Removed by Filter: 119996
-                                       Buffers: shared hit=1529
-                                 ->  Index Scan using tb_historico_id_matricula_key on tb_historico h  (cost=0.42..8.44 rows=1 width=14) (actual time=0.017..0.017 rows=1 loops=8)
-                                       Index Cond: (id_matricula = m.id_matricula)
-                                       Buffers: shared hit=33
-                           ->  Index Scan using tb_turma_pkey on tb_turma t  (cost=0.29..8.30 rows=1 width=12) (actual time=0.009..0.009 rows=1 loops=8)
-                                 Index Cond: (id_turma = m.id_turma)
-                                 Buffers: shared hit=25
-                     ->  Index Scan using tb_disciplina_pkey on tb_disciplina d  (cost=0.14..0.16 rows=1 width=18) (actual time=0.004..0.004 rows=1 loops=8)
-                           Index Cond: (id_disciplina = t.id_disciplina)
-                           Buffers: shared hit=17
-               ->  Index Scan using tb_periodo_letivo_pkey on tb_periodo_letivo pl  (cost=0.14..0.15 rows=1 width=8) (actual time=0.003..0.003 rows=1 loops=8)
-                     Index Cond: (id_periodo_letivo = t.id_periodo_letivo)
-                     Buffers: shared hit=17
- Planning:
-   Buffers: shared hit=160
- Planning Time: 1.277 ms
- Execution Time: 10.733 ms
-
+Gather Merge  (cost=4379.05..4379.63 rows=5 width=28) (actual time=8.576..10.535 rows=8 loops=1)
+  Workers Planned: 1
+  Workers Launched: 1
+  Buffers: shared hit=1628
+  ->  Sort  (cost=3379.04..3379.06 rows=5 width=28) (actual time=6.474..6.477 rows=4 loops=2)
+        Sort Key: pl.ano, pl.semestre
+        Sort Method: quicksort  Memory: 25kB
+        Buffers: shared hit=1628
+        Worker 0:  Sort Method: quicksort  Memory: 25kB
+        ->  Nested Loop  (cost=0.98..3378.99 rows=5 width=28) (actual time=0.713..6.453 rows=4 loops=2)
+              Buffers: shared hit=1621
+              ->  Nested Loop  (cost=0.85..3378.21 rows=5 width=28) (actual time=0.708..6.438 rows=4 loops=2)
+                    Buffers: shared hit=1604
+                    ->  Nested Loop  (cost=0.71..3377.41 rows=5 width=18) (actual time=0.701..6.420 rows=4 loops=2)
+                          Buffers: shared hit=1587
+                          ->  Nested Loop  (cost=0.42..3335.89 rows=5 width=14) (actual time=0.687..6.386 rows=4 loops=2)
+                                Buffers: shared hit=1562
+                                ->  Parallel Seq Scan on tb_matricula m  (cost=0.00..3293.71 rows=5 width=8) (actual time=0.667..6.333 rows=4 loops=2)
+                                      Filter: (id_aluno = 12345)
+                                      Rows Removed by Filter: 119996
+                                      Buffers: shared hit=1529
+                                ->  Index Scan using tb_historico_id_matricula_key on tb_historico h  (cost=0.42..8.44 rows=1 width=14) (actual time=0.010..0.010 rows=1 loops=8)
+                                      Index Cond: (id_matricula = m.id_matricula)
+                                      Buffers: shared hit=33
+                          ->  Index Scan using tb_turma_pkey on tb_turma t  (cost=0.29..8.30 rows=1 width=12) (actual time=0.007..0.007 rows=1 loops=8)
+                                Index Cond: (id_turma = m.id_turma)
+                                Buffers: shared hit=25
+                    ->  Index Scan using tb_disciplina_pkey on tb_disciplina d  (cost=0.14..0.16 rows=1 width=18) (actual time=0.003..0.003 rows=1 loops=8)
+                          Index Cond: (id_disciplina = t.id_disciplina)
+                          Buffers: shared hit=17
+              ->  Index Scan using tb_periodo_letivo_pkey on tb_periodo_letivo pl  (cost=0.14..0.15 rows=1 width=8) (actual time=0.002..0.002 rows=1 loops=8)
+                    Index Cond: (id_periodo_letivo = t.id_periodo_letivo)
+                    Buffers: shared hit=17
+Planning:
+  Buffers: shared hit=193
+Planning Time: 0.694 ms
+Execution Time: 10.570 ms
 --- DEPOIS (com o índice) ---
-                                                                                 QUERY PLAN                                                                                  
------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Sort  (cost=172.26..172.28 rows=8 width=28) (actual time=0.153..0.155 rows=8 loops=1)
-   Sort Key: pl.ano, pl.semestre
-   Sort Method: quicksort  Memory: 25kB
-   Buffers: shared hit=81 read=2
-   ->  Nested Loop  (cost=5.20..172.14 rows=8 width=28) (actual time=0.053..0.145 rows=8 loops=1)
-         Join Filter: (t.id_periodo_letivo = pl.id_periodo_letivo)
-         Rows Removed by Join Filter: 56
-         Buffers: shared hit=81 read=2
-         ->  Nested Loop  (cost=5.20..169.93 rows=8 width=28) (actual time=0.044..0.125 rows=8 loops=1)
-               Buffers: shared hit=80 read=2
-               ->  Nested Loop  (cost=5.06..168.64 rows=8 width=18) (actual time=0.041..0.115 rows=8 loops=1)
-                     Buffers: shared hit=64 read=2
-                     ->  Nested Loop  (cost=4.78..102.22 rows=8 width=14) (actual time=0.036..0.085 rows=8 loops=1)
-                           Buffers: shared hit=40 read=2
-                           ->  Bitmap Heap Scan on tb_matricula m  (cost=4.36..34.72 rows=8 width=8) (actual time=0.028..0.038 rows=8 loops=1)
-                                 Recheck Cond: (id_aluno = 12345)
-                                 Heap Blocks: exact=8
-                                 Buffers: shared hit=8 read=2
-                                 ->  Bitmap Index Scan on idx_matricula_aluno  (cost=0.00..4.35 rows=8 width=0) (actual time=0.023..0.023 rows=8 loops=1)
-                                       Index Cond: (id_aluno = 12345)
-                                       Buffers: shared read=2
-                           ->  Index Scan using tb_historico_id_matricula_key on tb_historico h  (cost=0.42..8.44 rows=1 width=14) (actual time=0.005..0.005 rows=1 loops=8)
-                                 Index Cond: (id_matricula = m.id_matricula)
-                                 Buffers: shared hit=32
-                     ->  Index Scan using tb_turma_pkey on tb_turma t  (cost=0.29..8.30 rows=1 width=12) (actual time=0.003..0.003 rows=1 loops=8)
-                           Index Cond: (id_turma = m.id_turma)
-                           Buffers: shared hit=24
-               ->  Index Scan using tb_disciplina_pkey on tb_disciplina d  (cost=0.14..0.16 rows=1 width=18) (actual time=0.001..0.001 rows=1 loops=8)
-                     Index Cond: (id_disciplina = t.id_disciplina)
-                     Buffers: shared hit=16
-         ->  Materialize  (cost=0.00..1.15 rows=10 width=8) (actual time=0.001..0.001 rows=8 loops=8)
-               Buffers: shared hit=1
-               ->  Seq Scan on tb_periodo_letivo pl  (cost=0.00..1.10 rows=10 width=8) (actual time=0.003..0.004 rows=10 loops=1)
-                     Buffers: shared hit=1
- Planning:
-   Buffers: shared hit=51 read=1
- Planning Time: 0.595 ms
- Execution Time: 0.184 ms
-
+Sort  (cost=172.26..172.28 rows=8 width=28) (actual time=0.174..0.176 rows=8 loops=1)
+  Sort Key: pl.ano, pl.semestre
+  Sort Method: quicksort  Memory: 25kB
+  Buffers: shared hit=81 read=2
+  ->  Nested Loop  (cost=5.20..172.14 rows=8 width=28) (actual time=0.084..0.166 rows=8 loops=1)
+        Join Filter: (t.id_periodo_letivo = pl.id_periodo_letivo)
+        Rows Removed by Join Filter: 56
+        Buffers: shared hit=81 read=2
+        ->  Nested Loop  (cost=5.20..169.93 rows=8 width=28) (actual time=0.074..0.145 rows=8 loops=1)
+              Buffers: shared hit=80 read=2
+              ->  Nested Loop  (cost=5.06..168.64 rows=8 width=18) (actual time=0.044..0.108 rows=8 loops=1)
+                    Buffers: shared hit=64 read=2
+                    ->  Nested Loop  (cost=4.78..102.22 rows=8 width=14) (actual time=0.040..0.079 rows=8 loops=1)
+                          Buffers: shared hit=40 read=2
+                          ->  Bitmap Heap Scan on tb_matricula m  (cost=4.36..34.72 rows=8 width=8) (actual time=0.031..0.041 rows=8 loops=1)
+                                Recheck Cond: (id_aluno = 12345)
+                                Heap Blocks: exact=8
+                                Buffers: shared hit=8 read=2
+                                ->  Bitmap Index Scan on idx_matricula_aluno  (cost=0.00..4.35 rows=8 width=0) (actual time=0.026..0.026 rows=8 loops=1)
+                                      Index Cond: (id_aluno = 12345)
+                                      Buffers: shared read=2
+                          ->  Index Scan using tb_historico_id_matricula_key on tb_historico h  (cost=0.42..8.44 rows=1 width=14) (actual time=0.004..0.004 rows=1 loops=8)
+                                Index Cond: (id_matricula = m.id_matricula)
+                                Buffers: shared hit=32
+                    ->  Index Scan using tb_turma_pkey on tb_turma t  (cost=0.29..8.30 rows=1 width=12) (actual time=0.003..0.003 rows=1 loops=8)
+                          Index Cond: (id_turma = m.id_turma)
+                          Buffers: shared hit=24
+              ->  Index Scan using tb_disciplina_pkey on tb_disciplina d  (cost=0.14..0.16 rows=1 width=18) (actual time=0.004..0.004 rows=1 loops=8)
+                    Index Cond: (id_disciplina = t.id_disciplina)
+                    Buffers: shared hit=16
+        ->  Materialize  (cost=0.00..1.15 rows=10 width=8) (actual time=0.001..0.001 rows=8 loops=8)
+              Buffers: shared hit=1
+              ->  Seq Scan on tb_periodo_letivo pl  (cost=0.00..1.10 rows=10 width=8) (actual time=0.003..0.005 rows=10 loops=1)
+                    Buffers: shared hit=1
+Planning:
+  Buffers: shared hit=49 read=1
+Planning Time: 0.540 ms
+Execution Time: 0.212 ms
 
 #################################################################
 # ÍNDICE 2 (PARCIAL): idx_matricula_turma_ativa  (consulta 2)
 #################################################################
 --- ANTES (sem o índice) ---
-                                                       QUERY PLAN                                                       
-------------------------------------------------------------------------------------------------------------------------
- HashAggregate  (cost=4649.04..4737.91 rows=8887 width=12) (actual time=16.314..16.450 rows=960 loops=1)
-   Group Key: id_turma
-   Batches: 1  Memory Usage: 465kB
-   Buffers: shared hit=1529
-   ->  Seq Scan on tb_matricula  (cost=0.00..4529.00 rows=24008 width=4) (actual time=0.015..13.493 rows=23886 loops=1)
-         Filter: (status_matricula = 'Ativa'::status_mat_t)
-         Rows Removed by Filter: 216114
-         Buffers: shared hit=1529
- Planning:
-   Buffers: shared hit=5
- Planning Time: 0.054 ms
- Execution Time: 16.517 ms
-
+HashAggregate  (cost=4649.32..4738.47 rows=8915 width=12) (actual time=15.393..15.526 rows=960 loops=1)
+  Group Key: id_turma
+  Batches: 1  Memory Usage: 465kB
+  Buffers: shared hit=1529
+  ->  Seq Scan on tb_matricula  (cost=0.00..4529.00 rows=24064 width=4) (actual time=0.015..12.737 rows=23886 loops=1)
+        Filter: (status_matricula = 'Ativa'::status_mat_t)
+        Rows Removed by Filter: 216114
+        Buffers: shared hit=1529
+Planning:
+  Buffers: shared hit=22
+Planning Time: 0.119 ms
+Execution Time: 15.596 ms
 --- DEPOIS (com o índice) ---
-                                                                         QUERY PLAN                                                                          
--------------------------------------------------------------------------------------------------------------------------------------------------------------
- GroupAggregate  (cost=0.29..672.80 rows=8899 width=12) (actual time=0.049..3.921 rows=960 loops=1)
-   Group Key: id_turma
-   Buffers: shared hit=1 read=24
-   ->  Index Only Scan using idx_matricula_turma_ativa on tb_matricula  (cost=0.29..462.93 rows=24176 width=4) (actual time=0.041..1.960 rows=23886 loops=1)
-         Heap Fetches: 0
-         Buffers: shared hit=1 read=24
- Planning:
-   Buffers: shared hit=15
- Planning Time: 0.132 ms
- Execution Time: 3.983 ms
-
+GroupAggregate  (cost=0.29..660.48 rows=8867 width=12) (actual time=0.024..3.572 rows=960 loops=1)
+  Group Key: id_turma
+  Buffers: shared hit=1 read=24
+  ->  Index Only Scan using idx_matricula_turma_ativa on tb_matricula  (cost=0.29..453.93 rows=23576 width=4) (actual time=0.017..1.715 rows=23886 loops=1)
+        Heap Fetches: 0
+        Buffers: shared hit=1 read=24
+Planning:
+  Buffers: shared hit=8 read=1
+Planning Time: 0.142 ms
+Execution Time: 3.628 ms
 --- Tamanho: o índice parcial é muito menor que o total ---
- indice_parcial_ativas | indice_total_por_aluno | tabela 
------------------------+------------------------+--------
- 200 kB                | 2240 kB                | 12 MB
-
+índice parcial (ativas): 200 kB | índice total por aluno: 2240 kB | tabela: 12 MB
 
 #################################################################
 # ÍNDICE 3 (expressão): idx_aluno_nome_lower  (consulta 3)
 #################################################################
 --- ANTES (sem o índice) ---
-                                                   QUERY PLAN                                                   
-----------------------------------------------------------------------------------------------------------------
- Sort  (cost=835.42..835.80 rows=150 width=46) (actual time=10.244..10.251 rows=136 loops=1)
-   Sort Key: nome_aluno
-   Sort Method: quicksort  Memory: 34kB
-   Buffers: shared hit=380
-   ->  Seq Scan on tb_aluno  (cost=0.00..830.00 rows=150 width=46) (actual time=0.107..10.186 rows=136 loops=1)
-         Filter: (lower((nome_aluno)::text) ~~ 'mariana silva%'::text)
-         Rows Removed by Filter: 29864
-         Buffers: shared hit=380
- Planning:
-   Buffers: shared hit=12
- Planning Time: 0.073 ms
- Execution Time: 10.267 ms
-
+Sort  (cost=835.42..835.80 rows=150 width=46) (actual time=15.186..15.197 rows=136 loops=1)
+  Sort Key: nome_aluno
+  Sort Method: quicksort  Memory: 34kB
+  Buffers: shared hit=380
+  ->  Seq Scan on tb_aluno  (cost=0.00..830.00 rows=150 width=46) (actual time=0.138..15.114 rows=136 loops=1)
+        Filter: (lower((nome_aluno)::text) ~~ 'mariana silva%'::text)
+        Rows Removed by Filter: 29864
+        Buffers: shared hit=380
+Planning:
+  Buffers: shared hit=15
+Planning Time: 0.097 ms
+Execution Time: 15.216 ms
 --- DEPOIS (com o índice) ---
-                                                               QUERY PLAN                                                               
-----------------------------------------------------------------------------------------------------------------------------------------
- Sort  (cost=8.34..8.34 rows=3 width=46) (actual time=0.266..0.273 rows=136 loops=1)
-   Sort Key: nome_aluno
-   Sort Method: quicksort  Memory: 34kB
-   Buffers: shared hit=136 read=2
-   ->  Index Scan using idx_aluno_nome_lower on tb_aluno  (cost=0.29..8.31 rows=3 width=46) (actual time=0.027..0.215 rows=136 loops=1)
-         Index Cond: ((lower((nome_aluno)::text) ~>=~ 'mariana silva'::text) AND (lower((nome_aluno)::text) ~<~ 'mariana silvb'::text))
-         Filter: (lower((nome_aluno)::text) ~~ 'mariana silva%'::text)
-         Buffers: shared hit=136 read=2
- Planning:
-   Buffers: shared hit=54 read=1
- Planning Time: 0.225 ms
- Execution Time: 0.288 ms
-
+Sort  (cost=8.34..8.34 rows=3 width=46) (actual time=0.376..0.392 rows=136 loops=1)
+  Sort Key: nome_aluno
+  Sort Method: quicksort  Memory: 34kB
+  Buffers: shared hit=136 read=2
+  ->  Index Scan using idx_aluno_nome_lower on tb_aluno  (cost=0.29..8.31 rows=3 width=46) (actual time=0.031..0.317 rows=136 loops=1)
+        Index Cond: ((lower((nome_aluno)::text) ~>=~ 'mariana silva'::text) AND (lower((nome_aluno)::text) ~<~ 'mariana silvb'::text))
+        Filter: (lower((nome_aluno)::text) ~~ 'mariana silva%'::text)
+        Buffers: shared hit=136 read=2
+Planning:
+  Buffers: shared hit=52 read=1
+Planning Time: 0.301 ms
+Execution Time: 0.416 ms
 
 #################################################################
 # ÍNDICE 4 (PARCIAL + INCLUDE): idx_historico_reprovado_falta  (consulta 4)
 #################################################################
 --- ANTES (sem o índice) ---
-                                                                QUERY PLAN                                                                 
--------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=5048.75..5051.05 rows=20 width=10) (actual time=10.906..13.599 rows=20 loops=1)
-   Buffers: shared hit=2224
-   ->  Gather Merge  (cost=5048.75..5463.79 rows=3609 width=10) (actual time=10.905..13.595 rows=20 loops=1)
-         Workers Planned: 1
-         Workers Launched: 1
-         Buffers: shared hit=2224
-         ->  Sort  (cost=4048.74..4057.76 rows=3609 width=10) (actual time=8.999..9.000 rows=18 loops=2)
-               Sort Key: frequencia
-               Sort Method: top-N heapsort  Memory: 26kB
-               Buffers: shared hit=2224
-               Worker 0:  Sort Method: top-N heapsort  Memory: 26kB
-               ->  Parallel Seq Scan on tb_historico  (cost=0.00..3952.71 rows=3609 width=10) (actual time=0.009..8.432 rows=3185 loops=2)
-                     Filter: (situacao = 'Reprovado por Falta'::situacao_t)
-                     Rows Removed by Filter: 116815
-                     Buffers: shared hit=2188
- Planning:
-   Buffers: shared hit=9
- Planning Time: 0.047 ms
- Execution Time: 13.613 ms
-
+Limit  (cost=5051.28..5053.58 rows=20 width=10) (actual time=13.340..15.552 rows=20 loops=1)
+  Buffers: shared hit=2224
+  ->  Gather Merge  (cost=5051.28..5477.24 rows=3704 width=10) (actual time=13.338..15.547 rows=20 loops=1)
+        Workers Planned: 1
+        Workers Launched: 1
+        Buffers: shared hit=2224
+        ->  Sort  (cost=4051.27..4060.53 rows=3704 width=10) (actual time=11.180..11.181 rows=18 loops=2)
+              Sort Key: frequencia
+              Sort Method: top-N heapsort  Memory: 26kB
+              Buffers: shared hit=2224
+              Worker 0:  Sort Method: top-N heapsort  Memory: 26kB
+              ->  Parallel Seq Scan on tb_historico  (cost=0.00..3952.71 rows=3704 width=10) (actual time=0.010..10.469 rows=3185 loops=2)
+                    Filter: (situacao = 'Reprovado por Falta'::situacao_t)
+                    Rows Removed by Filter: 116815
+                    Buffers: shared hit=2188
+Planning:
+  Buffers: shared hit=13
+Planning Time: 0.129 ms
+Execution Time: 15.570 ms
 --- DEPOIS (com o índice) ---
-                                                                          QUERY PLAN                                                                          
---------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.28..0.92 rows=20 width=10) (actual time=0.034..0.038 rows=20 loops=1)
-   Buffers: shared hit=1 read=2
-   ->  Index Only Scan using idx_historico_reprovado_falta on tb_historico  (cost=0.28..204.64 rows=6424 width=10) (actual time=0.034..0.036 rows=20 loops=1)
-         Heap Fetches: 0
-         Buffers: shared hit=1 read=2
- Planning:
-   Buffers: shared hit=20
- Planning Time: 0.131 ms
- Execution Time: 0.047 ms
-
+Limit  (cost=0.28..0.90 rows=20 width=10) (actual time=0.019..0.023 rows=20 loops=1)
+  Buffers: shared hit=1 read=2
+  ->  Index Only Scan using idx_historico_reprovado_falta on tb_historico  (cost=0.28..209.68 rows=6760 width=10) (actual time=0.018..0.020 rows=20 loops=1)
+        Heap Fetches: 0
+        Buffers: shared hit=1 read=2
+Planning:
+  Buffers: shared hit=13 read=1
+Planning Time: 0.117 ms
+Execution Time: 0.031 ms
 
 #################################################################
-# BÔNUS - ÍNDICE GIN sobre JSONB: idx_log_detalhe_gin  (consulta 5)
-# (mesma definição de 09_bonus_jsonb_gin.sql)
+# BÔNUS - ÍNDICE GIN sobre JSONB: idx_log_detalhe_gin  (consulta 5; mesma definição do 09_bonus_jsonb_gin.sql)
 #################################################################
 --- ANTES (sem o índice) ---
-                                                                 QUERY PLAN                                                                 
---------------------------------------------------------------------------------------------------------------------------------------------
- Finalize Aggregate  (cost=5715.63..5715.64 rows=1 width=8) (actual time=94.079..96.144 rows=1 loops=1)
-   Buffers: shared hit=3255
-   ->  Gather  (cost=5715.42..5715.63 rows=2 width=8) (actual time=91.550..96.131 rows=3 loops=1)
-         Workers Planned: 2
-         Workers Launched: 2
-         Buffers: shared hit=3255
-         ->  Partial Aggregate  (cost=4715.42..4715.43 rows=1 width=8) (actual time=87.248..87.249 rows=1 loops=3)
-               Buffers: shared hit=3255
-               ->  Parallel Seq Scan on tb_log_matricula  (cost=0.00..4713.33 rows=833 width=0) (actual time=87.244..87.245 rows=0 loops=3)
-                     Filter: ((detalhe)::jsonb @> '{"origem": "secretaria", "id_turma": 1234}'::jsonb)
-                     Rows Removed by Filter: 66667
-                     Buffers: shared hit=3255
- Planning Time: 0.029 ms
- Execution Time: 96.165 ms
-
+Finalize Aggregate  (cost=5715.63..5715.64 rows=1 width=8) (actual time=109.945..110.422 rows=1 loops=1)
+  Buffers: shared hit=3255
+  ->  Gather  (cost=5715.42..5715.63 rows=2 width=8) (actual time=107.705..110.410 rows=3 loops=1)
+        Workers Planned: 2
+        Workers Launched: 2
+        Buffers: shared hit=3255
+        ->  Partial Aggregate  (cost=4715.42..4715.43 rows=1 width=8) (actual time=103.148..103.150 rows=1 loops=3)
+              Buffers: shared hit=3255
+              ->  Parallel Seq Scan on tb_log_matricula  (cost=0.00..4713.33 rows=833 width=0) (actual time=103.145..103.145 rows=0 loops=3)
+                    Filter: ((detalhe)::jsonb @> '{"origem": "secretaria", "id_turma": 1234}'::jsonb)
+                    Rows Removed by Filter: 66667
+                    Buffers: shared hit=3255
+Planning Time: 0.031 ms
+Execution Time: 110.443 ms
 --- DEPOIS (com o índice) ---
-                                                             QUERY PLAN                                                             
-------------------------------------------------------------------------------------------------------------------------------------
- Aggregate  (cost=97.32..97.33 rows=1 width=8) (actual time=0.265..0.266 rows=1 loops=1)
-   Buffers: shared hit=23
-   ->  Bitmap Heap Scan on tb_log_matricula  (cost=21.62..97.27 rows=20 width=0) (actual time=0.263..0.263 rows=0 loops=1)
-         Recheck Cond: ((detalhe)::jsonb @> '{"origem": "secretaria", "id_turma": 1234}'::jsonb)
-         Buffers: shared hit=23
-         ->  Bitmap Index Scan on idx_log_detalhe_gin  (cost=0.00..21.62 rows=20 width=0) (actual time=0.261..0.261 rows=0 loops=1)
-               Index Cond: ((detalhe)::jsonb @> '{"origem": "secretaria", "id_turma": 1234}'::jsonb)
-               Buffers: shared hit=23
- Planning:
-   Buffers: shared hit=25
- Planning Time: 0.175 ms
- Execution Time: 0.286 ms
+Aggregate  (cost=97.32..97.33 rows=1 width=8) (actual time=0.574..0.574 rows=1 loops=1)
+  Buffers: shared hit=23
+  ->  Bitmap Heap Scan on tb_log_matricula  (cost=21.62..97.27 rows=20 width=0) (actual time=0.571..0.571 rows=0 loops=1)
+        Recheck Cond: ((detalhe)::jsonb @> '{"origem": "secretaria", "id_turma": 1234}'::jsonb)
+        Buffers: shared hit=23
+        ->  Bitmap Index Scan on idx_log_detalhe_gin  (cost=0.00..21.62 rows=20 width=0) (actual time=0.568..0.568 rows=0 loops=1)
+              Index Cond: ((detalhe)::jsonb @> '{"origem": "secretaria", "id_turma": 1234}'::jsonb)
+              Buffers: shared hit=23
+Planning:
+  Buffers: shared hit=12
+Planning Time: 0.243 ms
+Execution Time: 0.607 ms
+drop cascades to 8 other objects
+DETAIL:  drop cascades to table academico_perf.tb_periodo_letivo
+drop cascades to table academico_perf.tb_disciplina
+drop cascades to table academico_perf.tb_professor
+drop cascades to table academico_perf.tb_turma
+drop cascades to table academico_perf.tb_aluno
+drop cascades to table academico_perf.tb_matricula
+drop cascades to table academico_perf.tb_historico
+drop cascades to table academico_perf.tb_log_matricula
 
-
-=================================================================
- RESUMO DO GANHO MEDIDO (melhor de 5 execuções após 1 de aquecimento)
- ms = Execution Time do EXPLAIN ANALYZE; buffers = blocos 8kB lidos (hit+read)
-=================================================================
+Schema academico_perf removido. RESUMO DO GANHO MEDIDO = último resultado (melhor de 5 execuções após 1 de aquecimento).
+ms = Execution Time do EXPLAIN ANALYZE; buffers = blocos de 8 kB lidos (hit + read).
             indice             | q | antes_ms | depois_ms | ganho_vezes | antes_buffers | depois_buffers |     plano_antes      |                       plano_depois                        
 -------------------------------+---+----------+-----------+-------------+---------------+----------------+----------------------+-----------------------------------------------------------
- idx_matricula_aluno           | 1 |   10.369 |     0.100 |       103.7 |          1624 |             83 | Index Scan, Seq Scan | Bitmap Heap Scan, Bitmap Index Scan, Index Scan, Seq Scan
- idx_matricula_turma_ativa     | 2 |   15.552 |     3.534 |         4.4 |          1529 |             25 | Seq Scan             | Index Only Scan
- idx_aluno_nome_lower          | 3 |   10.626 |     0.116 |        91.6 |           380 |            138 | Seq Scan             | Index Scan
- idx_historico_reprovado_falta | 4 |   12.036 |     0.012 |      1003.0 |          2224 |              3 | Seq Scan             | Index Only Scan
- idx_log_detalhe_gin           | 5 |   91.565 |     0.288 |       317.9 |          3255 |             23 | Seq Scan             | Bitmap Heap Scan, Bitmap Index Scan
+ idx_matricula_aluno           | 1 |    9.671 |     0.077 |       125.6 |          1628 |             83 | Index Scan, Seq Scan | Bitmap Heap Scan, Bitmap Index Scan, Index Scan, Seq Scan
+ idx_matricula_turma_ativa     | 2 |   15.199 |     3.480 |         4.4 |          1529 |             25 | Seq Scan             | Index Only Scan
+ idx_aluno_nome_lower          | 3 |    9.761 |     0.201 |        48.6 |           380 |            138 | Seq Scan             | Index Scan
+ idx_historico_reprovado_falta | 4 |   14.802 |     0.012 |      1233.5 |          2224 |              3 | Seq Scan             | Index Only Scan
+ idx_log_detalhe_gin           | 5 |  103.367 |     0.393 |       263.0 |          3255 |             23 | Seq Scan             | Bitmap Heap Scan, Bitmap Index Scan
+(5 rows)
 
-
-Schema academico_perf removido. Fim das evidências.
