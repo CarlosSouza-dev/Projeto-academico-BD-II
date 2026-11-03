@@ -1,127 +1,77 @@
 -----------------------------------------------------------------
 -- 09_bonus_jsonb_gin.sql  (BÔNUS: JSONB com índice GIN, até +0,5 na A2)
 --
--- tb_log_matricula.detalhe é uma coluna TEXT no diagrama oficial (que não foi
--- alterado). Aqui ela passa a guardar um documento JSON de auditoria e ganha:
---   1) um CHECK que garante que o texto é um JSON válido;
---   2) um índice GIN sobre a EXPRESSÃO (detalhe::jsonb), que acelera
---      buscas por conteúdo do documento (operador @>);
---   3) triggers que gravam o log automaticamente a cada matrícula/mudança
---      de status.
--- Rode APÓS 01 a 07 (idempotente).
+-- tb_log_matricula guarda a auditoria das matrículas. A coluna detalhe
+-- passa de TEXT para JSONB (JSON guardado em formato binário, que o banco
+-- entende e consegue pesquisar por dentro). Depois ela ganha:
+--   1) um índice GIN, que acelera a busca por conteúdo do JSON (operador @>);
+--   2) uma trigger que grava o log sozinha a cada nova matrícula.
 --
--- pgAdmin: execute o arquivo INTEIRO (F5). As mensagens do teste do CHECK aparecem em
--- "Messages"; a última consulta (logs_restantes = 0) aparece em "Data Output".
--- Para mostrar cada passo ao vivo, SELECIONE o trecho da demonstração e execute.
+-- Por que GIN e não o índice comum (B-tree)? O B-tree ordena o valor inteiro
+-- da coluna; serve para =, <, >. O GIN é um índice "invertido": guarda cada
+-- chave e valor de DENTRO do documento e responde rápido "quais linhas têm
+-- id_turma = 1?". A prova do ganho está no 05b_evidencias_explain.sql.
 --
--- Por que GIN e não B-tree? O B-tree ordena valores inteiros; só serve para
--- igualdade/ordem da coluna toda. O GIN é um índice INVERTIDO: indexa cada
--- chave/valor DENTRO do documento e responde "quais linhas contêm
--- {"id_turma": 1}?" sem ler a tabela. jsonb_path_ops indexa só o que o
--- operador @> usa (hashes de caminho+valor): índice menor e mais rápido que o
--- jsonb_ops padrão, ao custo de não atender os operadores de existência (?, ?|, ?&).
---
--- Evidência de ganho medido (200.000 registros): evidencias_explain.txt, consulta 5.
+-- Rode APÓS 01 a 07. Pode ser executado de novo sem erro.
 -----------------------------------------------------------------
-SET search_path TO academico, public;
+SET search_path TO academico;
 
--- 1) detalhe deve ser JSON válido (ou NULL). pg_input_is_valid: PostgreSQL 16+.
-ALTER TABLE tb_log_matricula DROP CONSTRAINT IF EXISTS ck_log_detalhe_json;
+-- 1) TEXT -> JSONB (a tabela está vazia; o USING diz como converter)
 ALTER TABLE tb_log_matricula
-    ADD CONSTRAINT ck_log_detalhe_json CHECK (detalhe IS NULL OR pg_input_is_valid(detalhe, 'jsonb'));
+    ALTER COLUMN detalhe TYPE jsonb USING detalhe::jsonb;
 
--- 2) Índice GIN sobre a expressão: o texto é convertido para jsonb na indexação.
+-- 2) Índice GIN na coluna JSONB
 CREATE INDEX IF NOT EXISTS idx_log_detalhe_gin
-    ON tb_log_matricula USING gin ((detalhe::jsonb) jsonb_path_ops);
+    ON tb_log_matricula USING gin (detalhe);
 
--- 3) Auditoria automática. SECURITY DEFINER: grava o log mesmo quando quem
---    matricula não tem direito de escrita no log (a trilha não depende de
---    permissão de quem a gera). session_user = quem realmente conectou.
+-- 3) Trigger de auditoria (dois objetos: a função e a trigger)
 CREATE OR REPLACE FUNCTION fn_log_matricula()
-RETURNS trigger
+RETURNS TRIGGER
 LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = academico, pg_temp
 AS $$
 BEGIN
-    IF TG_OP = 'INSERT' THEN
-        INSERT INTO tb_log_matricula (id_matricula, acao, usuario, detalhe)
-        VALUES (NEW.id_matricula, 'MATRICULA', session_user,
-                jsonb_build_object('origem',      'trigger',
-                                   'id_aluno',    NEW.id_aluno,
-                                   'id_turma',    NEW.id_turma,
-                                   'status_novo', NEW.status_matricula)::text);
-    ELSE
-        INSERT INTO tb_log_matricula (id_matricula, acao, usuario, detalhe)
-        VALUES (NEW.id_matricula, 'STATUS_ALTERADO', session_user,
-                jsonb_build_object('origem',          'trigger',
-                                   'id_aluno',        NEW.id_aluno,
-                                   'id_turma',        NEW.id_turma,
-                                   'status_anterior', OLD.status_matricula,
-                                   'status_novo',     NEW.status_matricula)::text);
-    END IF;
-    RETURN NULL;     -- AFTER trigger: o retorno é ignorado
+    -- NEW é a matrícula que acabou de entrar
+    INSERT INTO tb_log_matricula (id_matricula, acao, usuario, detalhe)
+    VALUES (NEW.id_matricula,
+            'MATRICULA',
+            current_user,
+            jsonb_build_object('id_aluno', NEW.id_aluno,
+                               'id_turma', NEW.id_turma,
+                               'status',   NEW.status_matricula));
+    RETURN NEW;
 END;
 $$;
 
-REVOKE ALL ON FUNCTION fn_log_matricula() FROM PUBLIC;
+DROP TRIGGER IF EXISTS trg_matricula_log ON tb_matricula;
 
-DROP TRIGGER IF EXISTS trg_matricula_log_insert ON tb_matricula;
-DROP TRIGGER IF EXISTS trg_matricula_log_status ON tb_matricula;
+CREATE TRIGGER trg_matricula_log
+  AFTER INSERT ON tb_matricula
+FOR EACH ROW
+EXECUTE FUNCTION fn_log_matricula();
 
-CREATE TRIGGER trg_matricula_log_insert
-    AFTER INSERT ON tb_matricula
-    FOR EACH ROW EXECUTE FUNCTION fn_log_matricula();
+-- Conferência: a coluna agora é jsonb e a trigger existe
+SELECT c.column_name AS coluna, c.data_type AS tipo,
+       (SELECT COUNT(*) FROM information_schema.triggers
+         WHERE event_object_table = 'tb_matricula') AS triggers_em_tb_matricula
+FROM information_schema.columns c
+WHERE c.table_schema = 'academico'
+  AND c.table_name = 'tb_log_matricula'
+  AND c.column_name = 'detalhe';
 
--- Duas triggers (e não uma "INSERT OR UPDATE") porque a condição WHEN que
--- compara OLD e NEW não pode existir em trigger de INSERT.
-CREATE TRIGGER trg_matricula_log_status
-    AFTER UPDATE OF status_matricula ON tb_matricula
-    FOR EACH ROW
-    WHEN (OLD.status_matricula IS DISTINCT FROM NEW.status_matricula)
-    EXECUTE FUNCTION fn_log_matricula();
 
------------------------------------------------------------------
--- Demonstração (a parte entre BEGIN e ROLLBACK é DESFEITA no final)
------------------------------------------------------------------
--- COMMIT: confirma o que foi criado acima. Sem ele, o ROLLBACK da demonstração
--- desfaria também o CHECK, o índice e as triggers, porque o pgAdmin envia o
--- arquivo como UMA transação só.
-COMMIT;
-
--- 1) O CHECK recusa texto que não é JSON (mensagem em "Messages")
-DO $$
-BEGIN
-    BEGIN
-        INSERT INTO tb_log_matricula (id_matricula, acao, usuario, detalhe)
-        VALUES (1, 'TESTE', 'demo', 'isto não é json');
-        RAISE EXCEPTION 'FALHA: aceitou texto inválido';
-    EXCEPTION WHEN check_violation THEN
-        RAISE NOTICE 'OK: recusado pelo CHECK ck_log_detalhe_json';
-    END;
-END $$;
+/*-----------------------------------------------------------------
+DEMONSTRAÇÃO AO VIVO (selecione o trecho e aperte F5)
+BEGIN ... ROLLBACK: tudo é desfeito no final, o banco fica como estava.
 
 BEGIN;
--- 2) Matricular o aluno 91 na turma 5 e depois cancelar: o log é gravado sozinho
+-- a trigger grava o log sozinha
 INSERT INTO tb_matricula (id_aluno, id_turma, status_matricula) VALUES (91, 5, 'Ativa');
-UPDATE tb_matricula SET status_matricula = 'Cancelada' WHERE id_aluno = 91 AND id_turma = 5;
+SELECT * FROM tb_log_matricula;
 
-SELECT acao, usuario, detalhe::jsonb AS detalhe
-FROM tb_log_matricula
-ORDER BY id_log_matricula;
+-- busca por conteúdo do JSON (@> = "contém"); é a busca que o GIN acelera
+SELECT * FROM tb_log_matricula WHERE detalhe @> '{"id_turma": 5}';
 
--- 3) Busca por conteúdo do JSON (operador @>, atendido pelo GIN)
-SELECT id_log_matricula, acao, detalhe::jsonb ->> 'status_novo' AS status_novo
-FROM tb_log_matricula
-WHERE detalhe::jsonb @> '{"id_aluno": 91, "id_turma": 5}';
-
--- 4) O planner usa o GIN? Com 2 linhas ele prefere varrer a tabela (é mais barato);
---    forçamos o índice só para mostrar o plano. Com 200 mil linhas ele o escolhe
---    sozinho (veja evidencias_explain.txt, consulta 5).
-SET LOCAL enable_seqscan = off;
-EXPLAIN (COSTS OFF)
-SELECT id_log_matricula FROM tb_log_matricula WHERE detalhe::jsonb @> '{"id_aluno": 91}';
+-- ->> lê um campo do JSON como texto
+SELECT detalhe ->> 'id_aluno' AS aluno, detalhe ->> 'status' AS status FROM tb_log_matricula;
 ROLLBACK;
-
--- 5) Estado restaurado: sem logs de demonstração (última consulta; deve dar 0)
-SELECT COUNT(*) AS logs_restantes FROM tb_log_matricula;
+-----------------------------------------------------------------*/
