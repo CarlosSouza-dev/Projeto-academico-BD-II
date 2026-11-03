@@ -129,7 +129,7 @@ CREATE TABLE tb_turma_horario (
 CREATE TABLE tb_aluno (
     id_aluno int GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     id_curriculo int NOT NULL REFERENCES tb_curriculo(id_curriculo),
-    cpf char(11) UNIQUE NOT NULL CHECK (cpf ~ '^[0-9]{11}$'),
+    cpf char(11) UNIQUE NOT NULL CHECK (cpf ~ '^[0-9]{11}$'),   -- ~ compara com um padrão: exatamente 11 dígitos
     nome_aluno varchar(120) NOT NULL,
     email_aluno varchar(120) UNIQUE NOT NULL,
     nascimento date NOT NULL,

@@ -1,41 +1,48 @@
 -----------------------------------------------------------------
 -- 02_dml_carga.sql
 -- Carga de dados (>= 100 alunos, >= 6 turmas, >= 300 matrículas)
--- Arquivo em UTF-8. Rode APÓS o 01_ddl_inicial.sql.
+-- Rode APÓS o 01_ddl_inicial.sql.
+--
+-- Os ids não são informados: o IDENTITY gera 1, 2, 3... na ordem dos
+-- INSERTs. Como o 01 recria o schema do zero, os ids são sempre os mesmos,
+-- e é neles que as chaves estrangeiras abaixo se apoiam.
 -----------------------------------------------------------------
 SET search_path TO academico;
 
--- Semente fixa: as notas aleatórias passam a ser reproduzíveis a cada carga
+-- Semente fixa: as notas sorteadas com random() saem iguais em toda carga
 SELECT setseed(0.42);
 
 -----------------------------------------------------------------
--- Campus
+-- Campus (ids 1 e 2)
 -----------------------------------------------------------------
-INSERT INTO tb_campus (id_campus, nome_campus, cidade) OVERRIDING SYSTEM VALUE VALUES (1, 'Asa Sul', 'Brasília');
-INSERT INTO tb_campus (id_campus, nome_campus, cidade) OVERRIDING SYSTEM VALUE VALUES (2, 'Ceilândia', 'Brasília');
+INSERT INTO tb_campus (nome_campus, cidade) VALUES
+    ('Asa Sul',   'Brasília'),
+    ('Ceilândia', 'Brasília');
 
 -----------------------------------------------------------------
--- Curso
+-- Curso (ids 1 a 3)
 -----------------------------------------------------------------
-INSERT INTO tb_curso (id_curso, codigo, nome_curso, grau, ch_total_curso, id_campus) OVERRIDING SYSTEM VALUE VALUES (1, 'CCO', 'Ciência da Computação', 'BACHARELADO', 3200, 1);
-INSERT INTO tb_curso (id_curso, codigo, nome_curso, grau, ch_total_curso, id_campus) OVERRIDING SYSTEM VALUE VALUES (2, 'ENGC', 'Engenharia de Computação', 'BACHARELADO', 3600, 1);
-INSERT INTO tb_curso (id_curso, codigo, nome_curso, grau, ch_total_curso, id_campus) OVERRIDING SYSTEM VALUE VALUES (3, 'ADS', 'Análise e Desenvolvimento de Sistemas', 'TECNOLOGO', 2000, 1);
+INSERT INTO tb_curso (codigo, nome_curso, grau, ch_total_curso, id_campus) VALUES
+    ('CCO',  'Ciência da Computação',                 'BACHARELADO', 3200, 1),
+    ('ENGC', 'Engenharia de Computação',              'BACHARELADO', 3600, 1),
+    ('ADS',  'Análise e Desenvolvimento de Sistemas', 'TECNOLOGO',   2000, 1);
 
 -----------------------------------------------------------------
--- Currículo (o 2 é o currículo antigo/inativo de CCO)
+-- Currículo (ids 1 a 4; o 2 é o currículo antigo/inativo de CCO)
 -----------------------------------------------------------------
-INSERT INTO tb_curriculo (id_curriculo, id_curso, ano_vigente, ativo_curriculo) OVERRIDING SYSTEM VALUE VALUES (1, 1, 2026, true);
-INSERT INTO tb_curriculo (id_curriculo, id_curso, ano_vigente, ativo_curriculo) OVERRIDING SYSTEM VALUE VALUES (2, 1, 2023, false);
-INSERT INTO tb_curriculo (id_curriculo, id_curso, ano_vigente, ativo_curriculo) OVERRIDING SYSTEM VALUE VALUES (3, 2, 2026, true);
-INSERT INTO tb_curriculo (id_curriculo, id_curso, ano_vigente, ativo_curriculo) OVERRIDING SYSTEM VALUE VALUES (4, 3, 2026, true);
+INSERT INTO tb_curriculo (id_curso, ano_vigente, ativo_curriculo) VALUES
+    (1, 2026, true),
+    (1, 2023, false),
+    (2, 2026, true),
+    (3, 2026, true);
 
 -----------------------------------------------------------------
--- Aluno: 100 alunos gerados com generate_series, com nomes brasileiros
--- realistas (prenome + 2 sobrenomes) sorteados de listas fixas.
--- Os tamanhos das listas (20, 11 e 13) são primos entre si, então nenhum
--- nome completo se repete entre os 100 alunos. O e-mail é derivado do nome
--- (prenome.sobrenome) e o CPF é fictício, mas com dígitos verificadores válidos.
--- Ingressantes de 2026 só podem estar em currículos ATIVOS (1, 3 e 4)
+-- Aluno: 100 alunos gerados com generate_series.
+-- O nome é montado com prenome + 2 sobrenomes, escolhidos de três listas
+-- (ARRAY) pelo resto da divisão do número do aluno. As listas têm 20, 11 e
+-- 13 nomes, então nenhum nome completo se repete entre os 100 alunos.
+-- O e-mail vem do nome (sem acento) e o CPF é fictício: 11 dígitos únicos.
+-- Os alunos vão só para os currículos ATIVOS (1, 3 e 4).
 -----------------------------------------------------------------
 INSERT INTO tb_aluno (nome_aluno, cpf, email_aluno, nascimento, id_curriculo, ingresso_aluno, ativo_aluno)
 WITH nomes AS (
@@ -47,185 +54,152 @@ WITH nomes AS (
               'Rodrigues', 'Almeida', 'Nascimento', 'Carvalho'] AS sobrenomes_a,         -- 11
         ARRAY['Ferreira', 'Ribeiro', 'Martins', 'Araújo', 'Barbosa', 'Gomes', 'Cavalcanti',
               'Moreira', 'Rocha', 'Dias', 'Teixeira', 'Machado', 'Monteiro'] AS sobrenomes_b  -- 13
-),
-cpf_base AS (                                        -- 9 primeiros dígitos, distintos por aluno
-    SELECT i, LPAD((100000000 + i * 7919)::text, 9, '0') AS b9
-    FROM generate_series(1, 100) AS i
-),
-cpf_s1 AS (                                          -- soma ponderada (pesos 10..2) do 1º dígito
-    SELECT i, b9,
-           (SELECT SUM(SUBSTR(b9, k, 1)::int * (11 - k)) FROM generate_series(1, 9) AS k) AS s1
-    FROM cpf_base
-),
-cpf_d1 AS (
-    SELECT i, b9, CASE WHEN s1 % 11 < 2 THEN 0 ELSE 11 - s1 % 11 END AS dv1
-    FROM cpf_s1
-),
-cpf_s2 AS (                                          -- soma ponderada (pesos 11..2) do 2º dígito
-    SELECT i, b9, dv1,
-           (SELECT SUM(SUBSTR(b9 || dv1::text, k, 1)::int * (12 - k)) FROM generate_series(1, 10) AS k) AS s2
-    FROM cpf_d1
-),
-cpfs AS (
-    SELECT i,
-           b9 || dv1::text || (CASE WHEN s2 % 11 < 2 THEN 0 ELSE 11 - s2 % 11 END)::text AS cpf
-    FROM cpf_s2
 )
 SELECT
     n.prenomes[(g.i % 20) + 1] || ' ' ||
         n.sobrenomes_a[(g.i % 11) + 1] || ' ' ||
-        n.sobrenomes_b[(g.i % 13) + 1],                                  -- Nome completo
-    c.cpf,                                                               -- CPF único
-    lower(translate(n.prenomes[(g.i % 20) + 1] || '.' || n.sobrenomes_a[(g.i % 11) + 1],
-                    'ÁÀÂÃÉÊÍÓÔÕÚÇáàâãéêíóôõúç', 'AAAAEEIOOOUCaaaaeeiooouc'))
-        || '@iesb.edu.br',                                               -- E-mail sem acentos
-    DATE '1998-01-01' + ((g.i * 83) % 3300),                             -- Nascimentos entre 1998 e 2007
-    (ARRAY[1, 3, 4])[(g.i % 3) + 1],                                     -- Distribui nos 3 currículos ativos
-    2026,                                                                -- Ano de ingresso
-    true                                                                 -- Status ativo
+        n.sobrenomes_b[(g.i % 13) + 1],                                  -- nome completo
+    (52000000000 + g.i * 7919)::text,                                    -- CPF fictício (11 dígitos)
+    lower(replace(n.prenomes[(g.i % 20) + 1], 'ó', 'o') || '.' || n.sobrenomes_a[(g.i % 11) + 1])
+        || '@iesb.edu.br',                                               -- e-mail sem acento
+    DATE '1998-01-01' + ((g.i * 83) % 3300),                             -- nascimentos entre 1998 e 2007
+    (ARRAY[1, 3, 4])[(g.i % 3) + 1],                                     -- currículos ativos
+    2026,                                                                -- ano de ingresso
+    true                                                                 -- aluno ativo
 FROM generate_series(1, 100) AS g(i)
 CROSS JOIN nomes n
-JOIN cpfs c ON c.i = g.i
 ORDER BY g.i;                                                            -- id_aluno 1..100 na ordem de geração
 
 -----------------------------------------------------------------
--- Disciplina
+-- Disciplina (ids 1 a 7)
 -----------------------------------------------------------------
-INSERT INTO tb_disciplina (id_disciplina, codigo, nome, ch_teorico, ch_pratica, ementa) OVERRIDING SYSTEM VALUE VALUES (1, 'HMDC253', 'Banco de Dados I', 30, 30, 'Modelagem conceitual, modelo relacional, álgebra relacional, normalização e SQL.');
-INSERT INTO tb_disciplina (id_disciplina, codigo, nome, ch_teorico, ch_pratica, ementa) OVERRIDING SYSTEM VALUE VALUES (2, 'CCO072', 'Banco de Dados II', 30, 30, 'Arquitetura de SGBD, transações, controle de concorrência, recuperação, segurança, otimização de consultas e bancos distribuídos.');
-INSERT INTO tb_disciplina (id_disciplina, codigo, nome, ch_teorico, ch_pratica, ementa) OVERRIDING SYSTEM VALUE VALUES (3, 'CCO085', 'Programação Paralela', 45, 15, 'Concorrência, paralelismo, memória compartilhada e distribuída.');
-INSERT INTO tb_disciplina (id_disciplina, codigo, nome, ch_teorico, ch_pratica, ementa) OVERRIDING SYSTEM VALUE VALUES (4, 'MDC050', 'Inteligência Artificial', 45, 15, 'Busca, representação do conhecimento e aprendizado de máquina.');
-INSERT INTO tb_disciplina (id_disciplina, codigo, nome, ch_teorico, ch_pratica, ementa) OVERRIDING SYSTEM VALUE VALUES (5, 'ADS033', 'Aprendizagem de Máquina', 30, 30, 'Aprendizado supervisionado e não supervisionado, avaliação de modelos.');
-INSERT INTO tb_disciplina (id_disciplina, codigo, nome, ch_teorico, ch_pratica, ementa) OVERRIDING SYSTEM VALUE VALUES (6, 'MDC118', 'Algoritmos e Programação de Computadores I', 30, 30, 'Lógica de programação e estruturas básicas.');
-INSERT INTO tb_disciplina (id_disciplina, codigo, nome, ch_teorico, ch_pratica, ementa) OVERRIDING SYSTEM VALUE VALUES (7, 'MDC122', 'Sistemas Operacionais', 45, 15, 'Processos, escalonamento, memória e sistemas de arquivos.');
+INSERT INTO tb_disciplina (codigo, nome, ch_teorico, ch_pratica, ementa) VALUES
+    ('HMDC253', 'Banco de Dados I',                           30, 30, 'Modelagem conceitual, modelo relacional, álgebra relacional, normalização e SQL.'),
+    ('CCO072',  'Banco de Dados II',                          30, 30, 'Arquitetura de SGBD, transações, controle de concorrência, recuperação, segurança, otimização de consultas e bancos distribuídos.'),
+    ('CCO085',  'Programação Paralela',                       45, 15, 'Concorrência, paralelismo, memória compartilhada e distribuída.'),
+    ('MDC050',  'Inteligência Artificial',                    45, 15, 'Busca, representação do conhecimento e aprendizado de máquina.'),
+    ('ADS033',  'Aprendizagem de Máquina',                    30, 30, 'Aprendizado supervisionado e não supervisionado, avaliação de modelos.'),
+    ('MDC118',  'Algoritmos e Programação de Computadores I', 30, 30, 'Lógica de programação e estruturas básicas.'),
+    ('MDC122',  'Sistemas Operacionais',                      45, 15, 'Processos, escalonamento, memória e sistemas de arquivos.');
 
 -----------------------------------------------------------------
 -- Currículo x Disciplina
 -----------------------------------------------------------------
-INSERT INTO tb_curriculo_disciplina (id_curriculo, id_disciplina, periodo, tipo) VALUES (1, 1, 2, 'OBRIGATORIA');
-INSERT INTO tb_curriculo_disciplina (id_curriculo, id_disciplina, periodo, tipo) VALUES (1, 2, 4, 'OBRIGATORIA');
-INSERT INTO tb_curriculo_disciplina (id_curriculo, id_disciplina, periodo, tipo) VALUES (1, 3, 6, 'OBRIGATORIA');
-INSERT INTO tb_curriculo_disciplina (id_curriculo, id_disciplina, periodo, tipo) VALUES (1, 4, 4, 'OBRIGATORIA');
-INSERT INTO tb_curriculo_disciplina (id_curriculo, id_disciplina, periodo, tipo) VALUES (1, 6, 1, 'OBRIGATORIA');
-INSERT INTO tb_curriculo_disciplina (id_curriculo, id_disciplina, periodo, tipo) VALUES (1, 7, 4, 'OBRIGATORIA');
-INSERT INTO tb_curriculo_disciplina (id_curriculo, id_disciplina, periodo, tipo) VALUES (4, 5, 5, 'OBRIGATORIA');
+INSERT INTO tb_curriculo_disciplina (id_curriculo, id_disciplina, periodo, tipo) VALUES
+    (1, 1, 2, 'OBRIGATORIA'),
+    (1, 2, 4, 'OBRIGATORIA'),
+    (1, 3, 6, 'OBRIGATORIA'),
+    (1, 4, 4, 'OBRIGATORIA'),
+    (1, 6, 1, 'OBRIGATORIA'),
+    (1, 7, 4, 'OBRIGATORIA'),
+    (4, 5, 5, 'OBRIGATORIA');
 
 -----------------------------------------------------------------
 -- Feriado
 -----------------------------------------------------------------
-INSERT INTO tb_feriado (id_feriado, data, descricao, id_campus) OVERRIDING SYSTEM VALUE VALUES (1, '2026-09-07', 'Independência do Brasil', 1);
-INSERT INTO tb_feriado (id_feriado, data, descricao, id_campus) OVERRIDING SYSTEM VALUE VALUES (2, '2026-10-12', 'Nossa Senhora Aparecida', 1);
-INSERT INTO tb_feriado (id_feriado, data, descricao, id_campus) OVERRIDING SYSTEM VALUE VALUES (3, '2026-10-13', 'Recesso Antecipado do Dia do Professor', 1);
-INSERT INTO tb_feriado (id_feriado, data, descricao, id_campus) OVERRIDING SYSTEM VALUE VALUES (4, '2026-11-02', 'Finados', 1);
-INSERT INTO tb_feriado (id_feriado, data, descricao, id_campus) OVERRIDING SYSTEM VALUE VALUES (5, '2026-11-15', 'Proclamação da República', 1);
-INSERT INTO tb_feriado (id_feriado, data, descricao, id_campus) OVERRIDING SYSTEM VALUE VALUES (6, '2026-11-20', 'Dia da Consciência Negra', 1);
-INSERT INTO tb_feriado (id_feriado, data, descricao, id_campus) OVERRIDING SYSTEM VALUE VALUES (7, '2026-11-30', 'Dia do Evangélico', 1);
-INSERT INTO tb_feriado (id_feriado, data, descricao, id_campus) OVERRIDING SYSTEM VALUE VALUES (8, '2026-12-25', 'Natal', 1);
+INSERT INTO tb_feriado (data, descricao, id_campus) VALUES
+    ('2026-09-07', 'Independência do Brasil', 1),
+    ('2026-10-12', 'Nossa Senhora Aparecida', 1),
+    ('2026-10-13', 'Recesso Antecipado do Dia do Professor', 1),
+    ('2026-11-02', 'Finados', 1),
+    ('2026-11-15', 'Proclamação da República', 1),
+    ('2026-11-20', 'Dia da Consciência Negra', 1),
+    ('2026-11-30', 'Dia do Evangélico', 1),
+    ('2026-12-25', 'Natal', 1);
 
 -----------------------------------------------------------------
--- Período letivo
+-- Período letivo (id 1 = 2026/2, o vigente; id 2 = 2026/1)
 -----------------------------------------------------------------
-INSERT INTO tb_periodo_letivo (id_periodo_letivo, ano, semestre, data_inicio, data_fim) OVERRIDING SYSTEM VALUE VALUES (1, 2026, 2, '2026-08-03', '2026-12-12');
-INSERT INTO tb_periodo_letivo (id_periodo_letivo, ano, semestre, data_inicio, data_fim) OVERRIDING SYSTEM VALUE VALUES (2, 2026, 1, '2026-02-02', '2026-06-20');
+INSERT INTO tb_periodo_letivo (ano, semestre, data_inicio, data_fim) VALUES
+    (2026, 2, '2026-08-03', '2026-12-12'),
+    (2026, 1, '2026-02-02', '2026-06-20');
 
 -----------------------------------------------------------------
--- Professor
+-- Professor (ids 1 a 3)
 -----------------------------------------------------------------
-INSERT INTO tb_professor (id_professor, matricula_professor, nome_professor, email_professor, titulacao) OVERRIDING SYSTEM VALUE VALUES (1, '201680', 'Rodrigo Gonçalves Pinto', 'rodrigo.pinto@iesb.edu.br', 'MESTRE');
-INSERT INTO tb_professor (id_professor, matricula_professor, nome_professor, email_professor, titulacao) OVERRIDING SYSTEM VALUE VALUES (2, '201455', 'Marcelo Paiva', 'marcelo.paiva@iesb.edu.br', 'DOUTOR');
-INSERT INTO tb_professor (id_professor, matricula_professor, nome_professor, email_professor, titulacao) OVERRIDING SYSTEM VALUE VALUES (3, '201322', 'Roger Santos', 'roger.santos@iesb.edu.br', 'MESTRE');
+INSERT INTO tb_professor (matricula_professor, nome_professor, email_professor, titulacao) VALUES
+    ('201680', 'Rodrigo Gonçalves Pinto', 'rodrigo.pinto@iesb.edu.br', 'MESTRE'),
+    ('201455', 'Marcelo Paiva',           'marcelo.paiva@iesb.edu.br', 'DOUTOR'),
+    ('201322', 'Roger Santos',            'roger.santos@iesb.edu.br',  'MESTRE');
 
 -----------------------------------------------------------------
--- Turma: 6 turmas em 2026/2
--- O código identifica a turma do curso (CCODM2B = matutino, CCONM2B = noturno),
--- como nas turmas da disciplina; o mesmo código se repete entre disciplinas
--- diferentes, o que o UNIQUE (codigo, id_disciplina, id_periodo_letivo) permite.
+-- Turma: 6 turmas em 2026/2 (ids 1 a 6)
+-- O código identifica a turma do curso (CCODM2B = matutino, CCONM2B = noturno);
+-- o mesmo código se repete entre disciplinas, o que o
+-- UNIQUE (codigo, id_disciplina, id_periodo_letivo) permite.
 -- Turmas 2 e 4 têm aula às 19h15 (ver tb_turma_horario), logo são Noturno.
 -- vagas = 51: com 50 matrículas por turma sobra exatamente 1 vaga livre,
--- cenário pronto para a disputa pela "última vaga" (Frente 2).
+-- o cenário da disputa pela "última vaga" (06_anomalia_vagas.sql).
 -----------------------------------------------------------------
 INSERT INTO tb_turma (codigo, id_disciplina, id_periodo_letivo, id_professor, turno, vagas)
 SELECT
-    CASE WHEN i IN (2, 4) THEN 'CCONM2B' ELSE 'CCODM2B' END, -- Código da turma
-    (i % 7) + 1,                                             -- Disciplinas 2..7 (a 1 fica sem turma neste período)
-    1,                                                       -- Todas no período letivo 1 (2026/2)
-    (i % 3) + 1,                                             -- Distribui entre os 3 professores
+    CASE WHEN i IN (2, 4) THEN 'CCONM2B' ELSE 'CCODM2B' END, -- código da turma
+    (i % 7) + 1,                                             -- disciplinas 2..7 (a 1 fica sem turma neste período)
+    1,                                                       -- todas no período letivo 1 (2026/2)
+    (i % 3) + 1,                                             -- distribui entre os 3 professores
     (CASE WHEN i IN (2, 4) THEN 'Noturno' ELSE 'Matutino' END)::turno_t,
     51
 FROM generate_series(1, 6) AS i;
 
 -----------------------------------------------------------------
--- Matrícula + Histórico: 300 matrículas, determinísticas
+-- Matrícula + Histórico: 300 matrículas
 -- Alunos 1..90 cursam 3 turmas; alunos 1..30 cursam uma 4ª (90*3 + 30 = 300).
--- Cada turma recebe exatamente 50 matrículas (nunca estoura as 51 vagas).
--- Alunos 91..100 ficam sem matrícula (alimenta a consulta 4).
+-- Cada turma recebe exatamente 50 matrículas (não estoura as 51 vagas).
+-- Alunos 91..100 ficam sem matrícula (alimentam a consulta 4 e a disputa do 06).
 -----------------------------------------------------------------
-WITH novas_matriculas AS (
-    INSERT INTO tb_matricula (id_aluno, id_turma, status_matricula)
-    SELECT
-        a.id_aluno,
-        t.id_turma,
-        'Ativa'
-    FROM tb_aluno a
-    CROSS JOIN LATERAL generate_series(0, CASE WHEN a.id_aluno <= 30 THEN 3 ELSE 2 END) AS k
-    JOIN tb_turma t ON t.id_turma = ((a.id_aluno + k) % 6) + 1   -- turmas 1..6 (schema recriado do zero)
-    WHERE a.id_aluno <= 90
-    RETURNING id_matricula
-)
-INSERT INTO tb_historico (id_matricula, nota_a1, nota_a2, frequencia, situacao)
-SELECT
-    id_matricula,
-    ROUND((random() * 10)::numeric, 2),
-    ROUND((random() * 10)::numeric, 2),
-    ROUND((75 + random() * 25)::numeric, 2),
-    'Cursando'
-FROM novas_matriculas;
+INSERT INTO tb_matricula (id_aluno, id_turma, status_matricula)
+SELECT a.id_aluno,
+       ((a.id_aluno + k) % 6) + 1,                    -- turma 1..6
+       'Ativa'
+FROM tb_aluno a
+CROSS JOIN generate_series(0, 3) AS k                 -- até 4 turmas por aluno
+WHERE a.id_aluno <= 90
+  AND (k < 3 OR a.id_aluno <= 30)                     -- a 4ª turma só para os alunos 1..30
+ORDER BY a.id_aluno, k;
 
--- tb_log_matricula começa vazia (será preenchida por trigger/operações no Marco 2)
+-- Um histórico por matrícula (notas sorteadas; todos ainda "Cursando")
+INSERT INTO tb_historico (id_matricula, nota_a1, nota_a2, frequencia, situacao)
+SELECT id_matricula,
+       ROUND((random() * 10)::numeric, 2),
+       ROUND((random() * 10)::numeric, 2),
+       ROUND((75 + random() * 25)::numeric, 2),
+       'Cursando'
+FROM tb_matricula
+ORDER BY id_matricula;
+
+-- tb_log_matricula começa vazia (é preenchida pela trigger do 09)
 
 -----------------------------------------------------------------
 -- Pré-requisito: (id_disciplina) exige (id_requisito)
 -----------------------------------------------------------------
-INSERT INTO tb_pre_requisito (id_disciplina, id_requisito, vinculo) VALUES (1, 6, 'OBRIGATORIA');
-INSERT INTO tb_pre_requisito (id_disciplina, id_requisito, vinculo) VALUES (2, 1, 'OBRIGATORIA');
-INSERT INTO tb_pre_requisito (id_disciplina, id_requisito, vinculo) VALUES (3, 6, 'OBRIGATORIA');
-INSERT INTO tb_pre_requisito (id_disciplina, id_requisito, vinculo) VALUES (3, 7, 'OBRIGATORIA');
-INSERT INTO tb_pre_requisito (id_disciplina, id_requisito, vinculo) VALUES (4, 6, 'OBRIGATORIA');
+INSERT INTO tb_pre_requisito (id_disciplina, id_requisito, vinculo) VALUES
+    (1, 6, 'OBRIGATORIA'),    -- BD I exige APC I
+    (2, 1, 'OBRIGATORIA'),    -- BD II exige BD I
+    (3, 6, 'OBRIGATORIA'),    -- Prog. Paralela exige APC I
+    (3, 7, 'OBRIGATORIA'),    -- Prog. Paralela exige Sistemas Operacionais
+    (4, 6, 'OBRIGATORIA');    -- IA exige APC I
 
 -----------------------------------------------------------------
--- Sala
+-- Sala (ids 1 a 6)
 -----------------------------------------------------------------
-INSERT INTO tb_sala (id_sala, id_campus, codigo, capacidade, tipo) OVERRIDING SYSTEM VALUE VALUES (1, 1, 'JB1', 55, 'LABORATORIO');
-INSERT INTO tb_sala (id_sala, id_campus, codigo, capacidade, tipo) OVERRIDING SYSTEM VALUE VALUES (2, 1, 'JB2/4', 36, 'LABORATORIO');
-INSERT INTO tb_sala (id_sala, id_campus, codigo, capacidade, tipo) OVERRIDING SYSTEM VALUE VALUES (3, 1, 'JB5', 44, 'LABORATORIO');
-INSERT INTO tb_sala (id_sala, id_campus, codigo, capacidade, tipo) OVERRIDING SYSTEM VALUE VALUES (4, 1, 'IA2', 24, 'LABORATORIO');
-INSERT INTO tb_sala (id_sala, id_campus, codigo, capacidade, tipo) OVERRIDING SYSTEM VALUE VALUES (5, 1, 'IA3', 30, 'LABORATORIO');
-INSERT INTO tb_sala (id_sala, id_campus, codigo, capacidade, tipo) OVERRIDING SYSTEM VALUE VALUES (6, 1, 'JA2', 32, 'TEORICA');
+INSERT INTO tb_sala (id_campus, codigo, capacidade, tipo) VALUES
+    (1, 'JB1',   55, 'LABORATORIO'),
+    (1, 'JB2/4', 36, 'LABORATORIO'),
+    (1, 'JB5',   44, 'LABORATORIO'),
+    (1, 'IA2',   24, 'LABORATORIO'),
+    (1, 'IA3',   30, 'LABORATORIO'),
+    (1, 'JA2',   32, 'TEORICA');
 
 -----------------------------------------------------------------
--- Horário das turmas
+-- Horário das turmas (dia_semana: 1 = domingo ... 7 = sábado)
 -----------------------------------------------------------------
-INSERT INTO tb_turma_horario (id_turma_horario, id_turma, id_sala, dia_semana, faixa) OVERRIDING SYSTEM VALUE VALUES (1, 1, 1, 2, '[08:15:00,11:00:00)');
-INSERT INTO tb_turma_horario (id_turma_horario, id_turma, id_sala, dia_semana, faixa) OVERRIDING SYSTEM VALUE VALUES (2, 2, 4, 2, '[19:15:00,22:00:00)');
-INSERT INTO tb_turma_horario (id_turma_horario, id_turma, id_sala, dia_semana, faixa) OVERRIDING SYSTEM VALUE VALUES (3, 3, 5, 5, '[08:15:00,11:00:00)');
-INSERT INTO tb_turma_horario (id_turma_horario, id_turma, id_sala, dia_semana, faixa) OVERRIDING SYSTEM VALUE VALUES (4, 4, 5, 5, '[19:15:00,22:00:00)');
-INSERT INTO tb_turma_horario (id_turma_horario, id_turma, id_sala, dia_semana, faixa) OVERRIDING SYSTEM VALUE VALUES (5, 5, 2, 4, '[08:15:00,11:00:00)');
-INSERT INTO tb_turma_horario (id_turma_horario, id_turma, id_sala, dia_semana, faixa) OVERRIDING SYSTEM VALUE VALUES (6, 6, 2, 6, '[08:15:00,11:00:00)');
-
------------------------------------------------------------------
--- Ajuste das sequences de IDENTITY.
--- OVERRIDING SYSTEM VALUE não avança a sequence; sem isto, o primeiro
--- INSERT futuro sem id nessas tabelas falharia com "duplicate key".
------------------------------------------------------------------
-SELECT setval(pg_get_serial_sequence('academico.tb_campus', 'id_campus'),                    (SELECT MAX(id_campus) FROM tb_campus));
-SELECT setval(pg_get_serial_sequence('academico.tb_curso', 'id_curso'),                      (SELECT MAX(id_curso) FROM tb_curso));
-SELECT setval(pg_get_serial_sequence('academico.tb_curriculo', 'id_curriculo'),              (SELECT MAX(id_curriculo) FROM tb_curriculo));
-SELECT setval(pg_get_serial_sequence('academico.tb_disciplina', 'id_disciplina'),            (SELECT MAX(id_disciplina) FROM tb_disciplina));
-SELECT setval(pg_get_serial_sequence('academico.tb_feriado', 'id_feriado'),                  (SELECT MAX(id_feriado) FROM tb_feriado));
-SELECT setval(pg_get_serial_sequence('academico.tb_periodo_letivo', 'id_periodo_letivo'),    (SELECT MAX(id_periodo_letivo) FROM tb_periodo_letivo));
-SELECT setval(pg_get_serial_sequence('academico.tb_professor', 'id_professor'),              (SELECT MAX(id_professor) FROM tb_professor));
-SELECT setval(pg_get_serial_sequence('academico.tb_sala', 'id_sala'),                        (SELECT MAX(id_sala) FROM tb_sala));
-SELECT setval(pg_get_serial_sequence('academico.tb_turma_horario', 'id_turma_horario'),      (SELECT MAX(id_turma_horario) FROM tb_turma_horario));
+INSERT INTO tb_turma_horario (id_turma, id_sala, dia_semana, faixa) VALUES
+    (1, 1, 2, '08:15-11:00'),
+    (2, 4, 2, '19:15-22:00'),
+    (3, 5, 5, '08:15-11:00'),
+    (4, 5, 5, '19:15-22:00'),
+    (5, 2, 4, '08:15-11:00'),
+    (6, 2, 6, '08:15-11:00');
 
 -----------------------------------------------------------------
 -- Conferência dos mínimos exigidos (100 alunos, 6 turmas, 300 matrículas)

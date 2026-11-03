@@ -110,51 +110,46 @@ JOIN tb_disciplina req ON ap.id_requisito = req.id_disciplina
 ORDER BY d.nome, ap.nivel_profundidade, req.nome;
 
 -- Consulta 8: Recursiva - disciplinas que um aluno já pode cursar
--- 1) a CTE recursiva calcula TODOS os pré-requisitos (diretos e indiretos) obrigatórios;
--- 2) a CTE "aprovadas" lista o que cada aluno já concluiu com aprovação;
--- 3) uma disciplina do currículo do aluno está liberada se ele ainda não foi aprovado nela
---    e já foi aprovado em todos os seus pré-requisitos.
--- Troque o id do aluno em "a.id_aluno = 3" (aluno 3 pertence ao currículo 1 de CCO).
-WITH RECURSIVE cadeia_prerequisitos AS (
-    SELECT id_disciplina, id_requisito
+-- Em três etapas (CTEs), para o aluno 3 (currículo 1, de CCO):
+--   cadeia     -> CTE recursiva: todos os pré-requisitos de cada disciplina,
+--                 diretos (âncora) e indiretos (termo recursivo);
+--   aprovadas  -> disciplinas em que o aluno já foi aprovado;
+--   bloqueadas -> disciplinas que ainda têm algum pré-requisito não aprovado.
+-- Liberada = disciplina do currículo que não está aprovada nem bloqueada.
+-- (NOT IN é seguro aqui: as listas vêm de colunas NOT NULL, sem nulos.)
+-- Como a carga só tem matrículas "Cursando", aparecem as disciplinas sem pré-requisito.
+WITH RECURSIVE cadeia AS (
+    SELECT id_disciplina, id_requisito          -- âncora: pré-requisitos diretos
     FROM tb_pre_requisito
-    WHERE vinculo = 'OBRIGATORIA'
-    UNION
-    SELECT pr.id_disciplina, cp.id_requisito
-    FROM tb_pre_requisito pr
-    JOIN cadeia_prerequisitos cp ON pr.id_requisito = cp.id_disciplina
-    WHERE pr.vinculo = 'OBRIGATORIA'
+    UNION                                       -- UNION (sem ALL) descarta repetidos e evita laço
+    SELECT c.id_disciplina, pr.id_requisito     -- termo recursivo: o pré-requisito do pré-requisito
+    FROM cadeia c
+    JOIN tb_pre_requisito pr ON pr.id_disciplina = c.id_requisito
 ),
 aprovadas AS (
-    SELECT m.id_aluno, t.id_disciplina
+    SELECT t.id_disciplina
     FROM tb_historico h
     JOIN tb_matricula m ON m.id_matricula = h.id_matricula
     JOIN tb_turma t ON t.id_turma = m.id_turma
-    WHERE h.situacao = 'Aprovado'
+    WHERE m.id_aluno = 3
+      AND h.situacao = 'Aprovado'
+),
+bloqueadas AS (
+    SELECT id_disciplina
+    FROM cadeia
+    WHERE id_requisito NOT IN (SELECT id_disciplina FROM aprovadas)
 )
 SELECT
-    a.id_aluno,
     a.nome_aluno,
-    c.nome_curso,
     cd.periodo,
+    d.codigo,
     d.nome AS disciplina_liberada
 FROM tb_aluno a
-JOIN tb_curriculo cur ON cur.id_curriculo = a.id_curriculo
-JOIN tb_curso c ON c.id_curso = cur.id_curso
 JOIN tb_curriculo_disciplina cd ON cd.id_curriculo = a.id_curriculo
 JOIN tb_disciplina d ON d.id_disciplina = cd.id_disciplina
 WHERE a.id_aluno = 3
-  AND NOT EXISTS (                       -- ainda não aprovado na própria disciplina
-        SELECT 1 FROM aprovadas ap
-        WHERE ap.id_aluno = a.id_aluno
-          AND ap.id_disciplina = cd.id_disciplina)
-  AND NOT EXISTS (                       -- nenhum pré-requisito pendente
-        SELECT 1 FROM cadeia_prerequisitos cp
-        WHERE cp.id_disciplina = cd.id_disciplina
-          AND NOT EXISTS (
-                SELECT 1 FROM aprovadas ap
-                WHERE ap.id_aluno = a.id_aluno
-                  AND ap.id_disciplina = cp.id_requisito))
+  AND cd.id_disciplina NOT IN (SELECT id_disciplina FROM aprovadas)
+  AND cd.id_disciplina NOT IN (SELECT id_disciplina FROM bloqueadas)
 ORDER BY cd.periodo, d.nome;
 
 -- Consulta 9: Função de janela - ranking e percentil por turma
