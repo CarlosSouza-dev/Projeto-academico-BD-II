@@ -1,7 +1,7 @@
 # Roteiro para mostrar o projeto ao professor
 
 Passo a passo para subir o ambiente, rodar os scripts e demonstrar cada requisito do PDF, com as
-respostas para as perguntas mais prováveis. Tempo da demonstração completa: **~15 minutos**
+respostas para as perguntas mais prováveis. Tempo da demonstração completa: **~17 minutos**
 (fora a preparação).
 
 ---
@@ -83,45 +83,146 @@ demonstração no fim, dentro de um comentário `/* ... */`, que eu executo sele
 
 Mostre no arquivo: os **ENUM** (`turno_t`, `status_mat_t`), os **DOMAIN** (`nota_t` 0 a 10), as
 **colunas geradas** (`ch_total_disciplina`, `media_geral`), os **CHECK**, **UNIQUE** e **FK**.
-Depois prove ao vivo, num Query Tool, um de cada vez (todos dão **erro de propósito**):
+Depois prove ao vivo, num Query Tool, **selecionando um comando de cada vez** (todos dão **erro de
+propósito**). As tabelas já levam o `academico.` na frente, então cada comando funciona sozinho:
 
 ```sql
-SET search_path TO academico;
-
 -- CHECK: semestre só pode ser 1 ou 2
-INSERT INTO tb_periodo_letivo (ano, semestre, data_inicio, data_fim) VALUES (2027, 3, '2027-02-01', '2027-06-30');
+INSERT INTO academico.tb_periodo_letivo (ano, semestre, data_inicio, data_fim) VALUES (2027, 3, '2027-02-01', '2027-06-30');
 
 -- DOMAIN: nota de 0 a 10
-UPDATE tb_historico SET nota_a1 = 11 WHERE id_historico = 1;
+UPDATE academico.tb_historico SET nota_a1 = 11 WHERE id_historico = 1;
 
 -- UNIQUE: o aluno 1 já está na turma 1? (UNIQUE id_turma + id_aluno)
-INSERT INTO tb_matricula (id_aluno, id_turma, status_matricula)
-SELECT id_aluno, id_turma, 'Ativa' FROM tb_matricula WHERE id_matricula = 1;
+INSERT INTO academico.tb_matricula (id_aluno, id_turma, status_matricula)
+SELECT id_aluno, id_turma, 'Ativa' FROM academico.tb_matricula WHERE id_matricula = 1;
 
 -- FK: turma que não existe
-INSERT INTO tb_matricula (id_aluno, id_turma, status_matricula) VALUES (91, 999, 'Ativa');
+INSERT INTO academico.tb_matricula (id_aluno, id_turma, status_matricula) VALUES (91, 999, 'Ativa');
 
 -- Coluna gerada: não aceita valor digitado
-UPDATE tb_disciplina SET ch_total_disciplina = 100 WHERE id_disciplina = 1;
+UPDATE academico.tb_disciplina SET ch_total_disciplina = 100 WHERE id_disciplina = 1;
 
 -- CHECK: disciplina não pode ser pré-requisito de si mesma
-INSERT INTO tb_pre_requisito (id_disciplina, id_requisito, vinculo) VALUES (1, 1, 'OBRIGATORIA');
+INSERT INTO academico.tb_pre_requisito (id_disciplina, id_requisito, vinculo) VALUES (1, 1, 'OBRIGATORIA');
 ```
 
-### 3.2 Consultas do Marco 1 (~1 min) - `03_dql_consultas.sql`
+Erros esperados, na ordem: `violates check constraint "tb_periodo_letivo_semestre_check"`,
+`value for domain nota_t violates check constraint`, `duplicate key value violates unique constraint`,
+`violates foreign key constraint`, `column "ch_total_disciplina" can only be updated to DEFAULT` e
+`violates check constraint "tb_pre_requisito_check"`.
 
-Selecione e rode a **consulta 7** (árvore de pré-requisitos, CTE recursiva: BD II exige BD I, que
-exige APC I, nível 2) e a **consulta 9** (RANK e PERCENT_RANK por turma).
+Se aparecer **`relation ... does not exist`**, não é o erro esperado: o Query Tool está no banco
+errado (tem de ser `matricula`) ou o `01` e o `02` não foram rodados.
 
-### 3.3 Views e materialized view (~1 min) - `04_views.sql`
+### 3.2 Consultas do Marco 1 (~2 min) - `03_dql_consultas.sql`
+
+No Query Tool, rode antes `SET search_path TO academico;` (as consultas usam os nomes sem o schema).
+
+**Abertura (enquanto abre o arquivo):**
+> "O 03 tem 10 consultas em ordem crescente de complexidade, cada uma comentada. O PDF exige cinco
+> tipos: junção externa com agregação, que é a 6; duas recursivas, a 7 e a 8; ranking com percentil,
+> a 9; e LAG, a 10. As outras cobrem junção em cadeia, auto-junção, NOT EXISTS e HAVING."
+
+**Consulta 7, árvore de pré-requisitos** (selecione a consulta e aperte F5):
+> "É uma CTE recursiva, que tem três partes. A **âncora** pega os pré-requisitos diretos. O
+> **UNION ALL** junta a âncora com a parte que se repete. O **termo recursivo** busca o pré-requisito
+> do pré-requisito, somando 1 no nível a cada volta. A recursão para quando não acha mais nada."
+
+Aponte no resultado:
+> "Banco de Dados II exige Banco de Dados I no nível 1. E, como BD I exige Algoritmos I, BD II exige
+> Algoritmos I no **nível 2**, de forma indireta. Ninguém cadastrou essa ligação: foi a recursão que
+> descobriu. O `nivel < 10` é uma trava: se alguém cadastrasse um ciclo, a consulta não rodaria para sempre."
+
+**Consulta 9, ranking e percentil:**
+> "Aqui são funções de janela. O GROUP BY junta as linhas em uma só; a janela, com `OVER`, mantém
+> todas as linhas e acrescenta o cálculo como uma coluna. O `PARTITION BY` faz o ranking recomeçar em
+> cada turma. O `RANK()` dá a posição, em que 1 é a maior média da turma, e o `PERCENT_RANK()` dá o
+> percentil de 0 a 1: o melhor aluno da turma fica com 1,00 e o pior com 0,00."
+
+Se der tempo, a **consulta 10**:
+> "A 10 usa `LAG`, que olha a linha anterior: para cada aluno, compara a nota de uma disciplina com a
+> anterior e mostra se ele melhorou ou piorou."
+
+**Se o professor perguntar:**
+- *"Por que a consulta 8 mostra só duas disciplinas?"* "A carga só tem matrículas 'Cursando', porque
+  o semestre está em andamento. Ninguém foi aprovado ainda, então só aparecem as disciplinas sem
+  pré-requisito: Algoritmos I e Sistemas Operacionais. Se um aluno for aprovado em Algoritmos I, BD I
+  e IA passam a aparecer."
+- *"Por que NOT EXISTS na consulta 4, e não NOT IN?"* "Se a lista do NOT IN tiver um único nulo, o
+  resultado inteiro fica vazio, sem dar erro. O NOT EXISTS não tem esse problema."
+- *"RANK x DENSE_RANK?"* "Os dois dão a mesma posição no empate; o RANK pula a seguinte (1, 1, 3) e o
+  DENSE_RANK não pula (1, 1, 2)."
+
+### 3.3 Views e materialized view (~2 min) - `04_views.sql`
+
+**Abertura:**
+> "O 04 cria três views e uma materialized view. A view é uma consulta guardada com um nome: não
+> guarda dados, roda a consulta toda vez e por isso o dado está sempre atualizado. Ela serve para
+> esconder JOINs e para controlar o que cada usuário enxerga."
+
+**As três views (mostre no arquivo):**
+> "A **`v_oferta`** é o que o aluno vê ao escolher disciplina: junta seis tabelas (turma, período,
+> disciplina, professor, horário e sala), e quem consulta não precisa saber de nenhum JOIN. O
+> `LEFT JOIN` no horário faz uma turma sem horário aparecer mesmo assim."
+
+> "A **`v_historico`** junta notas, disciplina e período. Ela tem o `security_invoker = true`, que faz
+> a view rodar com as permissões de quem consulta, e não do dono. Sem isso, o aluno veria pela view o
+> histórico de todo mundo, furando o row-level security que mostro no 07."
+
+**A `v_vagas`:**
 
 ```sql
 SELECT * FROM academico.v_vagas;
+```
+
+> "A **`v_vagas`** mostra vagas, ocupadas e livres de cada turma. Ocupada é só matrícula 'Ativa':
+> quem trancou ou cancelou libera a vaga. Para isso uso `COUNT ... FILTER (WHERE status = 'Ativa')`,
+> que conta só as linhas que atendem à condição. Todas as turmas estão com 50 de 51, sobrando uma
+> vaga, de propósito: é o cenário da disputa pela última vaga. Quando eu mostrar a anomalia no 06,
+> esta view vai marcar **SUPERLOTADA**."
+
+**A materialized view:**
+
+```sql
 SELECT * FROM academico.mv_indicadores_disciplina;
 ```
 
-Explique a **política de atualização** (cabeçalho do item 4 do arquivo): REFRESH CONCURRENTLY diário
-e após lançamento de notas; exige índice único.
+> "A **`mv_indicadores_disciplina`** é o painel da coordenação: matrículas, aprovados, reprovados por
+> nota e por falta, e média por disciplina. Por ser **materializada**, o resultado fica gravado em
+> disco: a leitura é rápida, mas o dado só muda quando alguém roda o REFRESH."
+
+**Política de atualização (o PDF pede que seja justificada):**
+> "Um REFRESH por dia, de madrugada, e outro logo depois do lançamento de notas. Três motivos.
+> **Por que não uma view comum:** o painel recalcularia todo o histórico a cada acesso, e indicador
+> de gestão não precisa ser em tempo real; um dia de atraso é aceitável. **Por que não atualizar a
+> cada matrícula, com trigger:** as notas são lançadas em lote, então refazer a soma a cada linha
+> gravada seria desperdício. **Por que `CONCURRENTLY`:** o REFRESH normal bloqueia a leitura da MV
+> enquanto ela é reconstruída; o CONCURRENTLY deixa ler o tempo todo, mas **exige um índice único**,
+> por isso criei o `ux_mv_indicadores_disciplina`."
+
+**Demonstração opcional: a MV fica "congelada" até o REFRESH.** Rode **uma linha por vez** (o pgAdmin
+só mostra o último resultado), na mesma aba:
+
+```sql
+BEGIN;
+UPDATE academico.tb_historico SET situacao = 'Aprovado' WHERE id_historico = 1;
+SELECT disciplina, aprovados FROM academico.mv_indicadores_disciplina;   -- ainda 0 em todas
+REFRESH MATERIALIZED VIEW academico.mv_indicadores_disciplina;
+SELECT disciplina, aprovados FROM academico.mv_indicadores_disciplina;   -- agora uma tem 1
+ROLLBACK;                                                                -- desfaz tudo
+```
+
+> "A tabela já mudou, mas a MV continua com o valor antigo até o REFRESH; depois dele, ela pega a
+> mudança. O ROLLBACK desfaz o teste."
+
+**Se o professor perguntar:**
+- *"Por que aprovados está zero?"* "Todas as matrículas estão 'Cursando', porque o semestre não
+  fechou; a coluna `cursando` mostra 50 em cada disciplina."
+- *"View guarda dados?"* "A comum não, só a consulta. A materializada guarda o resultado."
+- *"A v_vagas e a v_oferta também usam security_invoker?"* "Não, de propósito: elas só mostram dados
+  públicos ou totais, sem CPF nem notas. Rodam como o dono, e o aluno não precisa de acesso às
+  tabelas por trás delas."
 
 ### 3.4 Plano de execução com EXPLAIN ANALYZE (~2 min) - `05b_evidencias_explain.sql`
 
