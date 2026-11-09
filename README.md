@@ -83,6 +83,7 @@ docker exec bd2_aluno_postgres pg_restore -U bd2 -d matricula /tmp/academico.dum
 Rode o `08_verificacao_backup.sql` antes e depois: os números têm de ser iguais. Explicação, justificativa e o caminho pelo pgAdmin em [`docs/backup_restauracao.md`](docs/backup_restauracao.md).
 
 ## Documentação
+* [`docs/roteiro_apresentacao.md`](docs/roteiro_apresentacao.md): passo a passo da demonstração (subir, rodar, mostrar cada requisito) e respostas às perguntas prováveis.
 * [`docs/comparacao_concorrencia.md`](docs/comparacao_concorrencia.md): a anomalia da última vaga, as duas correções e a comparação entre elas.
 * [`docs/backup_restauracao.md`](docs/backup_restauracao.md): estratégia de backup, passo a passo e roteiro da demonstração.
 * [`docs/guia_explicativo.md`](docs/guia_explicativo.md): como cada script funciona, com perguntas prováveis da arguição.
