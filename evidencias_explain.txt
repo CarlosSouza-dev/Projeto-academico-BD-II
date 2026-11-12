@@ -1,0 +1,194 @@
+                                                       version                                                        
+----------------------------------------------------------------------------------------------------------------------
+ PostgreSQL 17.11 (Debian 17.11-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+(1 row)
+
+NOTICE:  schema "teste_desempenho" does not exist, skipping
+DROP SCHEMA
+CREATE SCHEMA
+SET
+SELECT 100000
+SELECT 500000
+SELECT 500000
+ANALYZE
+ANALYZE
+ANALYZE
+                                                       QUERY PLAN                                                        
+-------------------------------------------------------------------------------------------------------------------------
+ Gather  (cost=1000.00..6804.67 rows=5 width=21) (actual time=0.699..7.673 rows=5 loops=1)
+   Workers Planned: 2
+   Workers Launched: 2
+   Buffers: shared hit=2304 read=896
+   ->  Parallel Seq Scan on tb_matricula  (cost=0.00..5804.17 rows=2 width=21) (actual time=2.044..5.034 rows=2 loops=3)
+         Filter: (id_aluno = 12345)
+         Rows Removed by Filter: 166665
+         Buffers: shared hit=2304 read=896
+ Planning:
+   Buffers: shared hit=19
+ Planning Time: 0.065 ms
+ Execution Time: 7.683 ms
+(12 rows)
+
+CREATE INDEX
+ANALYZE
+                                                             QUERY PLAN                                                             
+------------------------------------------------------------------------------------------------------------------------------------
+ Index Scan using idx_matricula_aluno on tb_matricula  (cost=0.42..23.86 rows=5 width=21) (actual time=0.014..0.019 rows=5 loops=1)
+   Index Cond: (id_aluno = 12345)
+   Buffers: shared hit=5 read=3
+ Planning:
+   Buffers: shared hit=20 read=1
+ Planning Time: 0.070 ms
+ Execution Time: 0.032 ms
+(7 rows)
+
+                                                             QUERY PLAN                                                              
+-------------------------------------------------------------------------------------------------------------------------------------
+ Finalize Aggregate  (cost=7325.24..7325.25 rows=1 width=8) (actual time=6.049..7.381 rows=1 loops=1)
+   Buffers: shared hit=3200
+   ->  Gather  (cost=7325.02..7325.23 rows=2 width=8) (actual time=5.987..7.378 rows=3 loops=1)
+         Workers Planned: 2
+         Workers Launched: 2
+         Buffers: shared hit=3200
+         ->  Partial Aggregate  (cost=6325.02..6325.03 rows=1 width=8) (actual time=4.830..4.831 rows=1 loops=3)
+               Buffers: shared hit=3200
+               ->  Parallel Seq Scan on tb_matricula  (cost=0.00..6325.00 rows=10 width=0) (actual time=0.597..4.826 rows=8 loops=3)
+                     Filter: ((id_turma = 770) AND (status_matricula = 'Ativa'::text))
+                     Rows Removed by Filter: 166658
+                     Buffers: shared hit=3200
+ Planning:
+   Buffers: shared hit=14
+ Planning Time: 0.048 ms
+ Execution Time: 7.394 ms
+(16 rows)
+
+CREATE INDEX
+ANALYZE
+                                                                QUERY PLAN                                                                
+------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=98.29..98.30 rows=1 width=8) (actual time=0.043..0.044 rows=1 loops=1)
+   Buffers: shared hit=25 read=2
+   ->  Bitmap Heap Scan on tb_matricula  (cost=4.48..98.23 rows=25 width=0) (actual time=0.015..0.041 rows=25 loops=1)
+         Recheck Cond: ((id_turma = 770) AND (status_matricula = 'Ativa'::text))
+         Heap Blocks: exact=25
+         Buffers: shared hit=25 read=2
+         ->  Bitmap Index Scan on idx_matricula_turma_ativa  (cost=0.00..4.48 rows=25 width=0) (actual time=0.009..0.010 rows=25 loops=1)
+               Index Cond: (id_turma = 770)
+               Buffers: shared read=2
+ Planning:
+   Buffers: shared hit=14 read=1
+ Planning Time: 0.119 ms
+ Execution Time: 0.054 ms
+(13 rows)
+
+ indice_parcial | indice_tabela_toda 
+----------------+--------------------
+ 392 kB         | 5720 kB
+(1 row)
+
+                                               QUERY PLAN                                                
+---------------------------------------------------------------------------------------------------------
+ Seq Scan on tb_aluno  (cost=0.00..2140.00 rows=500 width=21) (actual time=8.710..15.632 rows=1 loops=1)
+   Filter: (lower(nome_aluno) = 'aluno teste 54321'::text)
+   Rows Removed by Filter: 99999
+   Buffers: shared hit=640
+ Planning:
+   Buffers: shared hit=8
+ Planning Time: 0.027 ms
+ Execution Time: 15.640 ms
+(8 rows)
+
+CREATE INDEX
+ANALYZE
+                                                           QUERY PLAN                                                           
+--------------------------------------------------------------------------------------------------------------------------------
+ Index Scan using idx_aluno_nome_lower on tb_aluno  (cost=0.42..8.44 rows=1 width=21) (actual time=0.016..0.016 rows=1 loops=1)
+   Index Cond: (lower(nome_aluno) = 'aluno teste 54321'::text)
+   Buffers: shared hit=1 read=3
+ Planning:
+   Buffers: shared hit=11 read=1
+ Planning Time: 0.102 ms
+ Execution Time: 0.023 ms
+(7 rows)
+
+                                                                QUERY PLAN                                                                
+------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=7034.13..7036.46 rows=20 width=9) (actual time=7.940..9.225 rows=20 loops=1)
+   Buffers: shared hit=2416 read=960
+   ->  Gather Merge  (cost=7034.13..8489.30 rows=12472 width=9) (actual time=7.939..9.222 rows=20 loops=1)
+         Workers Planned: 2
+         Workers Launched: 2
+         Buffers: shared hit=2416 read=960
+         ->  Sort  (cost=6034.10..6049.69 rows=6236 width=9) (actual time=6.788..6.789 rows=20 loops=3)
+               Sort Key: frequencia
+               Sort Method: top-N heapsort  Memory: 26kB
+               Buffers: shared hit=2416 read=960
+               Worker 0:  Sort Method: top-N heapsort  Memory: 26kB
+               Worker 1:  Sort Method: top-N heapsort  Memory: 26kB
+               ->  Parallel Seq Scan on tb_historico  (cost=0.00..5868.17 rows=6236 width=9) (actual time=0.013..6.374 rows=5050 loops=3)
+                     Filter: (situacao = 'Reprovado por Falta'::text)
+                     Rows Removed by Filter: 161616
+                     Buffers: shared hit=2304 read=960
+ Planning:
+   Buffers: shared hit=17
+ Planning Time: 0.043 ms
+ Execution Time: 9.233 ms
+(20 rows)
+
+CREATE INDEX
+ANALYZE
+                                                                       QUERY PLAN                                                                       
+--------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.42..9.63 rows=20 width=9) (actual time=0.014..0.029 rows=20 loops=1)
+   Buffers: shared hit=20 read=3
+   ->  Index Scan using idx_historico_situacao_freq on tb_historico  (cost=0.42..7128.23 rows=15483 width=9) (actual time=0.013..0.027 rows=20 loops=1)
+         Index Cond: (situacao = 'Reprovado por Falta'::text)
+         Buffers: shared hit=20 read=3
+ Planning:
+   Buffers: shared hit=11 read=1
+ Planning Time: 0.081 ms
+ Execution Time: 0.036 ms
+(9 rows)
+
+SELECT 200000
+ANALYZE
+                                                      QUERY PLAN                                                       
+-----------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=5380.05..5380.06 rows=1 width=8) (actual time=26.222..26.223 rows=1 loops=1)
+   Buffers: shared hit=2304 read=576
+   ->  Seq Scan on tb_log_matricula  (cost=0.00..5380.00 rows=20 width=0) (actual time=0.140..26.208 rows=100 loops=1)
+         Filter: (detalhe @> '{"id_turma": 770}'::jsonb)
+         Rows Removed by Filter: 199900
+         Buffers: shared hit=2304 read=576
+ Planning:
+   Buffers: shared hit=5
+ Planning Time: 0.057 ms
+ Execution Time: 26.236 ms
+(10 rows)
+
+CREATE INDEX
+ANALYZE
+                                                              QUERY PLAN                                                              
+--------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=105.45..105.47 rows=1 width=8) (actual time=0.539..0.540 rows=1 loops=1)
+   Buffers: shared hit=161
+   ->  Bitmap Heap Scan on tb_log_matricula  (cost=30.16..105.41 rows=20 width=0) (actual time=0.449..0.535 rows=100 loops=1)
+         Recheck Cond: (detalhe @> '{"id_turma": 770}'::jsonb)
+         Heap Blocks: exact=100
+         Buffers: shared hit=161
+         ->  Bitmap Index Scan on idx_log_detalhe_gin  (cost=0.00..30.15 rows=20 width=0) (actual time=0.438..0.439 rows=100 loops=1)
+               Index Cond: (detalhe @> '{"id_turma": 770}'::jsonb)
+               Buffers: shared hit=61
+ Planning:
+   Buffers: shared hit=18
+ Planning Time: 0.105 ms
+ Execution Time: 0.551 ms
+(13 rows)
+
+RESET
+NOTICE:  drop cascades to 4 other objects
+DETAIL:  drop cascades to table teste_desempenho.tb_aluno
+drop cascades to table teste_desempenho.tb_matricula
+drop cascades to table teste_desempenho.tb_historico
+drop cascades to table teste_desempenho.tb_log_matricula
+DROP SCHEMA
