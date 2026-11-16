@@ -48,7 +48,7 @@ Cole cada arquivo no Query Tool e execute o arquivo inteiro com **F5**.
 | 7 | `06c_correcao_isolamento.sql` | Correção 2: nível `SERIALIZABLE` + retentativa | 2 |
 | 8 | `09_bonus_jsonb_gin.sql` | Bônus: log em JSONB com índice GIN e trigger de auditoria | 2 |
 
-Script de apoio (não altera os dados): `05b_evidencias_explain.sql`, a prova do ganho de cada índice (`EXPLAIN (ANALYZE, BUFFERS)` antes e depois) numa massa de teste de 500 mil linhas, que é apagada no fim. O resultado, gerado no PostgreSQL 17, está em [`evidencias_explain.txt`](evidencias_explain.txt).
+Scripts de apoio (não alteram os dados): `01_ddl(b).sql`, a demonstração ao vivo das restrições (cada comando dá erro de propósito; selecione um de cada vez), e `05b_evidencias_explain.sql`, a prova do ganho de cada índice (`EXPLAIN (ANALYZE, BUFFERS)` antes e depois) numa massa de teste de 500 mil linhas, que é apagada no fim. O resultado, gerado no PostgreSQL 17, está em [`evidencias_explain.txt`](evidencias_explain.txt).
 
 > **Atenção:** o `01_ddl_inicial.sql` executa `DROP SCHEMA academico CASCADE`, ou seja, apaga todos os dados do schema.
 
