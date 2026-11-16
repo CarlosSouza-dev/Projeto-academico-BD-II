@@ -12,8 +12,6 @@ Projeto da disciplina de Banco de Dados II (CCO072), semestre 2026/2. Implementa
 
 Detalhes e matrículas em [`AUTORES.md`](AUTORES.md).
 
-> **Situação da `main`:** já estão aqui a frente 1 completa (Marco 1, índices e bônus) e a frente 2 (`06`, `06b`, `06c` e `docs/comparacao_concorrencia.md`), além do relatório em `docs/`. Os scripts da frente 3 (`04`, `07`, `08`) estão na branch [`CARLOS`](https://github.com/CarlosSouza-dev/Projeto-academico-BD-II/tree/CARLOS) e entram na `main` quando o responsável integrar a sua parte. Os scripts `06`, `06b` e `06c` consultam a view `v_vagas`, criada no `04_views.sql`: rode o `04` antes deles.
-
 ## Pré-requisitos
 * [Docker Desktop](https://www.docker.com/) instalado.
 * O ambiente oficial da disciplina (`ambiente_aluno`, com o `docker-compose.yml` do professor): PostgreSQL 17 e pgAdmin.
@@ -35,35 +33,57 @@ No pgAdmin, cadastre o servidor com host `postgres` (o nome do serviço no `dock
 
 ## Passo 2: rodar os scripts, nesta ordem
 
-Cole cada arquivo no Query Tool e execute o arquivo inteiro com **F5**.
+Abra cada arquivo no Query Tool (ícone de pasta) e execute o arquivo inteiro com **F5**.
 
 | # | Arquivo | O que faz | Marco |
 |---|---|---|---|
 | 1 | `01_ddl_inicial.sql` | Recria o schema `academico`: tipos (ENUM), domínios, tabelas `tb_*`, chaves e restrições | 1 |
 | 2 | `02_dml_carga.sql` | Carga: 100 alunos, 6 turmas, 300 matrículas, cursos, currículos, salas e horários | 1 |
 | 3 | `03_dql_consultas.sql` | 10 consultas (junções, subconsulta, CTE recursiva, funções de janela) | 1 |
-| 4 | `05_indices.sql` | 4 índices: comum, parcial, de expressão e composto | 2 |
-| 5 | `06_anomalia_vagas.sql` | Procedure de matrícula sem controle (a anomalia da última vaga) | 2 |
-| 6 | `06b_correcao_bloqueio.sql` | Correção 1: `SELECT ... FOR UPDATE` | 2 |
-| 7 | `06c_correcao_isolamento.sql` | Correção 2: nível `SERIALIZABLE` + retentativa | 2 |
-| 8 | `09_bonus_jsonb_gin.sql` | Bônus: log em JSONB com índice GIN e trigger de auditoria | 2 |
+| 4 | `04_views.sql` | Views `v_oferta`, `v_vagas`, `v_historico` e a materialized view `mv_indicadores_disciplina` | 2 |
+| 5 | `05_indices.sql` | 4 índices: comum, parcial, de expressão e composto | 2 |
+| 6 | `06_anomalia_vagas.sql` | Procedure de matrícula sem controle (a anomalia da última vaga) | 2 |
+| 7 | `06b_correcao_bloqueio.sql` | Correção 1: `SELECT ... FOR UPDATE` | 2 |
+| 8 | `06c_correcao_isolamento.sql` | Correção 2: nível `SERIALIZABLE` + retentativa | 2 |
+| 9 | `07_seguranca.sql` | Papéis, `GRANT`/`REVOKE` e row-level security | 2 |
+| 10 | `09_bonus_jsonb_gin.sql` | Bônus: log em JSONB com índice GIN e trigger de auditoria | 2 |
 
-Scripts de apoio (não alteram os dados): `01_ddl(b).sql`, a demonstração ao vivo das restrições (cada comando dá erro de propósito; selecione um de cada vez), e `05b_evidencias_explain.sql`, a prova do ganho de cada índice (`EXPLAIN (ANALYZE, BUFFERS)` antes e depois) numa massa de teste de 500 mil linhas, que é apagada no fim. O resultado, gerado no PostgreSQL 17, está em [`evidencias_explain.txt`](evidencias_explain.txt).
+Scripts de apoio (não alteram os dados):
+* `01_ddl(b).sql`: demonstração ao vivo das restrições de integridade (cada comando dá erro de propósito; selecione um de cada vez).
+* `05b_evidencias_explain.sql`: prova do ganho de cada índice (`EXPLAIN (ANALYZE, BUFFERS)` antes e depois) numa massa de teste de 500 mil linhas, que é apagada no fim. O resultado está em [`evidencias_explain.txt`](evidencias_explain.txt).
+* `08_verificacao_backup.sql`: conferência do banco antes do backup e depois da restauração (a saída tem de ser igual).
 
 > **Atenção:** o `01_ddl_inicial.sql` executa `DROP SCHEMA academico CASCADE`, ou seja, apaga todos os dados do schema.
 
 ### Como os arquivos estão organizados
 
 Cada arquivo tem duas partes:
-1. **Criação**: o que roda com F5 no arquivo inteiro. Termina com uma consulta de conferência, que é o que o pgAdmin mostra em *Data Output* (o pgAdmin só mostra o resultado da **última** consulta).
-2. **Demonstração ao vivo**: quando existe, fica dentro de um comentário `/* ... */` no fim do arquivo, para não rodar no F5. Selecione só as linhas do passo e aperte F5 (o pgAdmin executa só a seleção).
+1. **Criação**: o que roda com F5 no arquivo inteiro (tabelas, views, procedures...). Termina com uma consulta de conferência, que é o que o pgAdmin mostra em *Data Output* (o pgAdmin só mostra o resultado da **última** consulta).
+2. **Demonstração ao vivo**: fica dentro de um comentário `/* ... */` no fim do arquivo, para não rodar no F5. Na apresentação, **selecione** só as linhas do passo e aperte F5 (o pgAdmin executa só a seleção). Alguns passos dão erro **de propósito** (está indicado no comentário).
 
-## Ganho medido dos índices (PostgreSQL 17)
+## Demonstrações da apresentação
 
-| Índice | Antes | Depois |
-|---|---|---|
-| comum (`id_aluno`) | Seq Scan, 7,7 ms | Index Scan, 0,03 ms |
-| parcial (turma, só `Ativa`) | Seq Scan, 7,4 ms | Bitmap Index Scan, 0,05 ms |
-| expressão (`lower(nome_aluno)`) | Seq Scan, 15,6 ms | Index Scan, 0,02 ms |
-| composto (situação, frequência) | Seq Scan + ordenação, 9,2 ms | Index Scan já ordenado, 0,04 ms |
-| GIN no JSONB (bônus) | Seq Scan, 26,2 ms | Bitmap Index Scan, 0,55 ms |
+| O que mostrar | Onde |
+|---|---|
+| Restrições de integridade | `01_ddl(b).sql` (6 comandos que dão erro de propósito: CHECK, domínio, UNIQUE, FK, coluna gerada) |
+| Anomalia da última vaga e as correções | Blocos de demonstração do `06`, `06b` e `06c` (duas abas do Query Tool) |
+| Plano de execução com `EXPLAIN ANALYZE` | `05b_evidencias_explain.sql` (selecione um bloco ANTES/DEPOIS) |
+| Row-level security | Bloco de demonstração do `07_seguranca.sql` |
+| Restauração de backup ao vivo | [`docs/backup_restauracao.md`](docs/backup_restauracao.md) |
+
+## Backup e restauração
+
+Pelo terminal (o contêiner se chama `bd2_aluno_postgres`):
+
+```
+docker exec bd2_aluno_postgres pg_dump -U bd2 -d matricula -n academico -Fc -f /tmp/academico.dump
+docker exec bd2_aluno_postgres psql -U bd2 -d matricula -c "DROP SCHEMA academico CASCADE"
+docker exec bd2_aluno_postgres pg_restore -U bd2 -d matricula /tmp/academico.dump
+```
+
+Rode o `08_verificacao_backup.sql` antes e depois: os números têm de ser iguais. Explicação, justificativa e o caminho pelo pgAdmin em [`docs/backup_restauracao.md`](docs/backup_restauracao.md).
+
+## Documentação
+* [`docs/relatorio_projeto.pdf`](docs/relatorio_projeto.pdf): relatório do projeto (2 páginas).
+* [`docs/comparacao_concorrencia.md`](docs/comparacao_concorrencia.md): a anomalia da última vaga, as duas correções e a comparação entre elas.
+* [`docs/backup_restauracao.md`](docs/backup_restauracao.md): estratégia de backup, passo a passo e roteiro da demonstração.
