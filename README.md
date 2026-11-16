@@ -12,7 +12,7 @@ Projeto da disciplina de Banco de Dados II (CCO072), semestre 2026/2. Implementa
 
 Detalhes e matrículas em [`AUTORES.md`](AUTORES.md).
 
-> **Situação da `main`:** já está aqui a frente 1 completa (Marco 1 e a parte de índices e bônus do Marco 2). Os scripts das frentes 2 e 3 (`04`, `06`, `06b`, `06c`, `07`, `08`) e a documentação delas estão na branch [`CARLOS`](https://github.com/CarlosSouza-dev/Projeto-academico-BD-II/tree/CARLOS) e entram na `main` quando cada responsável integrar a sua parte.
+> **Situação da `main`:** já estão aqui a frente 1 completa (Marco 1, índices e bônus) e a frente 2 (`06`, `06b`, `06c` e `docs/comparacao_concorrencia.md`), além do relatório em `docs/`. Os scripts da frente 3 (`04`, `07`, `08`) estão na branch [`CARLOS`](https://github.com/CarlosSouza-dev/Projeto-academico-BD-II/tree/CARLOS) e entram na `main` quando o responsável integrar a sua parte. Os scripts `06`, `06b` e `06c` consultam a view `v_vagas`, criada no `04_views.sql`: rode o `04` antes deles.
 
 ## Pré-requisitos
 * [Docker Desktop](https://www.docker.com/) instalado.
@@ -43,7 +43,10 @@ Cole cada arquivo no Query Tool e execute o arquivo inteiro com **F5**.
 | 2 | `02_dml_carga.sql` | Carga: 100 alunos, 6 turmas, 300 matrículas, cursos, currículos, salas e horários | 1 |
 | 3 | `03_dql_consultas.sql` | 10 consultas (junções, subconsulta, CTE recursiva, funções de janela) | 1 |
 | 4 | `05_indices.sql` | 4 índices: comum, parcial, de expressão e composto | 2 |
-| 5 | `09_bonus_jsonb_gin.sql` | Bônus: log em JSONB com índice GIN e trigger de auditoria | 2 |
+| 5 | `06_anomalia_vagas.sql` | Procedure de matrícula sem controle (a anomalia da última vaga) | 2 |
+| 6 | `06b_correcao_bloqueio.sql` | Correção 1: `SELECT ... FOR UPDATE` | 2 |
+| 7 | `06c_correcao_isolamento.sql` | Correção 2: nível `SERIALIZABLE` + retentativa | 2 |
+| 8 | `09_bonus_jsonb_gin.sql` | Bônus: log em JSONB com índice GIN e trigger de auditoria | 2 |
 
 Script de apoio (não altera os dados): `05b_evidencias_explain.sql`, a prova do ganho de cada índice (`EXPLAIN (ANALYZE, BUFFERS)` antes e depois) numa massa de teste de 500 mil linhas, que é apagada no fim. O resultado, gerado no PostgreSQL 17, está em [`evidencias_explain.txt`](evidencias_explain.txt).
 
