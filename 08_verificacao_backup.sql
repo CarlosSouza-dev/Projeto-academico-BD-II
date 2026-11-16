@@ -38,3 +38,45 @@ UNION ALL SELECT 'controle', 'soma dos ids de matrícula', SUM(id_matricula) FRO
 -- SET ROLE aluno_3;
 -- SELECT COUNT(*) FROM tb_historico;
 -- RESET ROLE;
+
+
+/*-----------------------------------------------------------------
+BACKUP, DESASTRE E RESTAURAÇÃO (demonstração ao vivo, ~3 minutos)
+Os comandos abaixo são do TERMINAL (CMD ou PowerShell), não do Query Tool.
+O contêiner do ambiente oficial se chama bd2_aluno_postgres.
+Se usar o Git Bash, rode antes: export MSYS_NO_PATHCONV=1
+
+PASSO 1 - ANTES: rode este arquivo no pgAdmin (F5) e guarde o resultado
+          (300 matrículas, 6 policies...).
+
+PASSO 2 - SALVAR o banco (backup lógico, formato custom, só o schema academico):
+docker exec bd2_aluno_postgres pg_dump -U bd2 -d matricula -n academico -Fc -f /tmp/academico.dump
+
+          Para guardar uma cópia FORA do contêiner:
+docker cp bd2_aluno_postgres:/tmp/academico.dump .
+
+PASSO 3 - APAGAR o schema inteiro (o desastre):
+docker exec bd2_aluno_postgres psql -U bd2 -d matricula -c "DROP SCHEMA academico CASCADE"
+
+          No Query Tool, a conferência agora dá erro (a tabela não existe):
+SELECT COUNT(*) FROM academico.tb_matricula;
+
+PASSO 4 - RECUPERAR o banco a partir do backup:
+docker exec bd2_aluno_postgres pg_restore -U bd2 -d matricula /tmp/academico.dump
+
+PASSO 5 - DEPOIS: rode este arquivo de novo (F5). Os números têm de ser
+          IGUAIS aos do passo 1. E o RLS continua valendo (deve dar 4):
+SET ROLE aluno_3;
+SELECT COUNT(*) FROM academico.tb_historico;
+RESET ROLE;
+
+OBSERVAÇÃO: os papéis (aluno, secretaria, coordenacao, aluno_3...) NÃO vão
+no backup do schema, porque pertencem ao servidor. Neste desastre eles
+continuam lá. Em um servidor novo, rode o 07_seguranca.sql (ou use
+pg_dumpall --roles-only) ANTES do pg_restore.
+
+PELO pgAdmin (sem terminal): botão direito no schema academico > Backup...
+(formato Custom); depois DROP SCHEMA academico CASCADE; e por fim botão
+direito no banco matricula > Restore... (formato Custom).
+Explicação completa em docs/backup_restauracao.md.
+-----------------------------------------------------------------*/
