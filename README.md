@@ -85,5 +85,8 @@ Rode o `08_verificacao_backup.sql` antes e depois: os números têm de ser iguai
 
 ## Documentação
 * [`docs/relatorio_projeto.pdf`](docs/relatorio_projeto.pdf): relatório do projeto (2 páginas).
+* [`docs/modelo_conceitual.pdf`](docs/modelo_conceitual.pdf): modelo conceitual (notação de Chen), com os 66 atributos.
+* [`docs/modelo_logico_professor.pdf`](docs/modelo_logico_professor.pdf): modelo lógico de referência do professor, base do DDL.
+* [`docs/modelo_logico_grupo.jpg`](docs/modelo_logico_grupo.jpg): modelo lógico montado pelo grupo.
 * [`docs/comparacao_concorrencia.md`](docs/comparacao_concorrencia.md): a anomalia da última vaga, as duas correções e a comparação entre elas.
 * [`docs/backup_restauracao.md`](docs/backup_restauracao.md): estratégia de backup, passo a passo e roteiro da demonstração.
